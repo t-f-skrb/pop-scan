@@ -93,6 +93,16 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .list .pos{display:inline-block;min-width:2.2em;font-weight:800;color:var(--ink);margin-right:6px}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .chips button{background:var(--field);box-shadow:inset 0 0 0 1.5px var(--rule);font-weight:600;min-height:40px;padding:6px 12px}
+.ord{display:grid;grid-template-columns:24px 3.2em 1fr 40px 40px;gap:6px;align-items:center;padding:8px 0;border-top:1px solid var(--rule)}
+.ord:first-child{border-top:0}
+.ord span{overflow-wrap:anywhere;font-size:.93rem}
+.ord b{font-size:.85rem;font-variant-numeric:tabular-nums}
+.ord button{min-height:38px;padding:0;background:var(--field);box-shadow:inset 0 0 0 1.5px var(--rule)}
+.ord input{width:20px;height:20px}
+.radio{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.radio label{flex:1;min-width:130px;display:flex;align-items:center;gap:8px;background:var(--field);border-radius:10px;padding:10px 12px;box-shadow:inset 0 0 0 1.5px var(--rule);font-weight:600;font-size:.93rem}
+.radio input{width:20px;height:20px;flex:none}
+.radio label:has(input:checked){box-shadow:inset 0 0 0 2px var(--ink)}
 .modes{display:grid;grid-template-columns:1fr 1fr;background:var(--paper);border-radius:10px;padding:4px;gap:4px;margin-bottom:10px}
 .modes button{min-height:40px;font-weight:600;color:var(--sub)}
 .modes button[aria-pressed="true"]{background:var(--ink);color:#fff}
@@ -183,7 +193,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     <button class="shelf" id="shelfBtn" aria-label="棚を変更"><small>棚(タップで変更)</small><b id="shelfName">未設定</b></button>
     <div class="tier">
       <button id="tierDown" aria-label="段を1つ減らす">−</button>
-      <div><small>段</small><b id="tierNo">1</b></div>
+      <div><small id="tierLbl">段</small><b id="tierNo">1</b></div>
       <button id="tierUp" aria-label="段を1つ増やす">+</button>
     </div>
     <div class="next"><small>次の順番</small><b id="nextPos">1</b></div>
@@ -204,7 +214,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
 </main>
 
 <nav class="bottom">
-  <button class="primary" id="exportBtn">CSVを書き出す</button>
+  <button class="primary" id="exportBtn">書き出す(CSV・PTS)</button>
   <button class="secondary" id="copyBtn">コピー</button>
 </nav>
 
@@ -222,16 +232,51 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
       <div><label class="f" for="ePrice">本体価格</label><input id="ePrice" type="text" inputmode="numeric" autocomplete="off" placeholder="398"></div>
       <div><label class="f" for="eTax">税込価格</label><input id="eTax" type="text" inputmode="numeric" autocomplete="off" placeholder="429"></div>
     </div>
-    <div class="r3" id="eLoc">
-      <div><label class="f" for="eShelf">棚</label><input id="eShelf" type="text" autocomplete="off" list="shelfList" placeholder="A-1"></div>
-      <div><label class="f" for="eTier">段</label><input id="eTier" type="text" inputmode="numeric" autocomplete="off" placeholder="1"></div>
-      <div><label class="f" for="ePos">順番</label><input id="ePos" type="text" inputmode="numeric" autocomplete="off" placeholder="1"></div>
+    <div id="eLoc">
+      <div class="r3" style="grid-template-columns:1.6fr 1fr">
+        <div><label class="f" for="eShelf">棚</label><input id="eShelf" type="text" autocomplete="off" list="shelfList" placeholder="A-1"></div>
+        <div><label class="f" for="eTier">段</label><input id="eTier" type="text" inputmode="numeric" autocomplete="off" placeholder="1"></div>
+      </div>
+      <div class="r3" style="grid-template-columns:1fr 1fr">
+        <div><label class="f" for="ePos">順番(左から)</label><input id="ePos" type="text" inputmode="numeric" autocomplete="off" placeholder="1"></div>
+        <div><label class="f" for="eFace">フェース数</label><input id="eFace" type="text" inputmode="numeric" autocomplete="off" placeholder="1"></div>
+      </div>
     </div>
     <datalist id="shelfList"></datalist>
     <div class="acts">
       <button type="button" class="ghost danger" id="eDel">削除</button>
       <button type="button" class="secondary" id="eCancel">キャンセル</button>
       <button type="submit" class="primary" id="eSave">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 書き出し -->
+<dialog id="exportDlg">
+  <form method="dialog" class="dlg" id="exportForm">
+    <h3>書き出す</h3>
+    <div class="radio" role="radiogroup" aria-label="ファイルの形式">
+      <label><input type="radio" name="xfmt" id="xFmtCsv" checked> 一覧CSV</label>
+      <label><input type="radio" name="xfmt" id="xFmtPts"> 棚POWER用 PTS</label>
+    </div>
+    <div id="xPtsBox" hidden>
+      <p class="hint">共通棚割情報(PTS)Ver1.0 形式で出力します。棚POWERでは「外部棚割モデルを開く」で「棚割配置情報(PTS)」を選んで読み込みます。</p>
+      <label class="f" for="xModel">棚割モデル名</label>
+      <input id="xModel" type="text" autocomplete="off" placeholder="例:おつまみ売場">
+      <label class="f">段の数え方(PTSは下から数えた段番号で出力します)</label>
+      <div class="radio" role="radiogroup" aria-label="段の数え方">
+        <label><input type="radio" name="xtier" id="xTierBottom" checked> 下から数えた</label>
+        <label><input type="radio" name="xtier" id="xTierTop"> 上から数えた</label>
+      </div>
+      <p class="hint">「上から数えた」を選ぶと、各棚で読み取った一番下の段を1段目として、下から数えた番号に変換します。</p>
+      <label class="f">台の並び(上が左端の1台目)</label>
+      <div id="xOrder"></div>
+      <p class="hint">順番は段ごとに左から振り直し、並んで続く同じ商品は1件にまとめてフェース数を合算します。フェース面は正面、陳列種別は棚板(置き)で出力します。</p>
+    </div>
+    <p class="hint" id="xNote"></p>
+    <div class="acts">
+      <button type="button" class="secondary" id="xCancel">キャンセル</button>
+      <button type="submit" class="primary">書き出す</button>
     </div>
   </form>
 </dialog>
@@ -278,6 +323,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
 </dialog>
 
 <script src="zxing.min.js"></script>
+<script src="encoding.min.js"></script>
 <script src="ocr/tesseract.min.js"></script>
 <script>
 (function(){
@@ -323,6 +369,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     const nm = $('shelfName');
     nm.textContent = settings.shelf || '未設定'; nm.classList.toggle('none', !settings.shelf);
     $('tierNo').textContent = settings.tier;
+    $('tierLbl').textContent = settings.tierFrom === 'top' ? '段(上から)' : '段(下から)';
     $('nextPos').textContent = nextPosOf(settings.shelf, settings.tier);
     $('tierDown').disabled = settings.tier <= 1;
   }
@@ -402,7 +449,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
       if (grouped && it.pos){ const ps = document.createElement('span'); ps.className = 'pos'; ps.textContent = it.pos + '.'; nm.appendChild(ps); }
       nm.appendChild(document.createTextNode(it.name || (it.ocrPending ? '文字を読み取り中…' : '(商品名なし)')));
       const mt = document.createElement('div'); mt.className = 'mt';
-      mt.textContent = [it.jan, it.spec, priceText(it)].filter(Boolean).join('  /  ');
+      mt.textContent = [it.jan, it.spec, priceText(it), (+it.face > 1 ? it.face + 'フェース' : '')].filter(Boolean).join('  /  ');
       const ed = document.createElement('span'); ed.className = 'ed'; ed.textContent = '編集';
       li.append(nm, ed, mt);
       li.onclick = () => openEdit(it.id);
@@ -461,6 +508,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
       const sh = id ? (it.shelf || '') : loc.shelf, ti = id ? (it.tier || '') : loc.tier;
       $('eShelf').value = sh; $('eTier').value = ti;
       $('ePos').value = id ? (it.pos || '') : (settings.shelfOn ? nextPosOf(sh, ti) : '');
+      $('eFace').value = it.face || 1;
       const dl = $('shelfList'); dl.textContent = '';
       shelfNames().forEach(n => { const o = document.createElement('option'); o.value = n; dl.appendChild(o); });
     }
@@ -481,6 +529,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
       rec.shelf = $('eShelf').value.trim();
       rec.tier = parseInt(digits($('eTier').value), 10) || '';
       rec.pos = parseInt(digits($('ePos').value), 10) || '';
+      rec.face = Math.max(1, parseInt(digits($('eFace').value), 10) || 1);
     }
     if (!rec.jan && !rec.name){ status('JANか商品名を入力してください', true); return; }
     if (editId){ updateItem(editId, Object.assign(rec, { ocrPending: false })); status('保存しました'); }
@@ -998,29 +1047,134 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
   function csv(){
     const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
     const withLoc = items.some(x => x.shelf || x.tier);
-    const head = (withLoc ? ['棚', '段', '順番'] : []).concat(['JANコード', '商品名', '規格', '本体価格', '税込価格']);
+    const head = (withLoc ? ['棚', '段', '順番', 'フェース数'] : []).concat(['JANコード', '商品名', '規格', '本体価格', '税込価格']);
     const lines = [head.map(q).join(',')];
-    (withLoc ? sortedItems() : items).forEach(it => lines.push((withLoc ? [q(it.shelf), it.tier || '', it.pos || ''] : [])
+    (withLoc ? sortedItems() : items).forEach(it => lines.push((withLoc ? [q(it.shelf), it.tier || '', it.pos || '', it.face || 1] : [])
       .concat([it.jan ? '="' + it.jan + '"' : '', q(it.name), q(it.spec), it.price || '', it.priceTax || '']).join(',')));
     return '\uFEFF' + lines.join('\r\n') + '\r\n';
   }
   const stamp = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_' + p(d.getHours()) + p(d.getMinutes()); };
-  $('exportBtn').onclick = async () => {
-    if (!items.length){ status('リストが空です', true); return; }
-    const name = 'POPリスト_' + stamp() + '.csv';
-    const blob = new Blob([csv()], { type: 'text/csv' });
+  // ---------- ファイル保存(共有メニュー優先) ----------
+  async function saveFile(name, blob, label){
     try {
-      const file = new File([blob], name, { type: 'text/csv' });
+      const file = new File([blob], name, { type: blob.type || 'text/csv' });
       if (navigator.canShare && navigator.canShare({ files: [file] })){
         await navigator.share({ files: [file], title: name });
-        status('CSVを書き出しました'); return;
+        status(label + 'を書き出しました'); return true;
       }
-    } catch(e){ if (e && e.name === 'AbortError'){ status('書き出しをキャンセルしました'); return; } }
+    } catch(e){ if (e && e.name === 'AbortError'){ status('書き出しをキャンセルしました'); return false; } }
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    status('CSVを保存しました');
-  };
+    status(label + 'を保存しました');
+    return true;
+  }
+
+  // ---------- 棚POWER用 PTS(共通棚割情報 Ver1.0)----------
+  // 仕様:1行目「共通棚割情報,Ｖ1．0,出力区分」、2行目 コメント(モデル名)、3行目 項目名、4行目以降 配置情報
+  // 配置情報:棚台番号(左から)、棚段番号(下から)、棚位置(段ごとに左から)、商品コード、フェース数、フェース面、フェース回転、積上数、陳列種別
+  let ptsOrder = [];
+  const ptsShelves = () => shelfNames().concat(items.some(x => !x.shelf && x.jan) ? [''] : []);
+  function renderPtsOrder(){
+    const box = $('xOrder'); box.textContent = '';
+    ptsOrder.forEach((sh, i) => {
+      const row = document.createElement('div'); row.className = 'ord';
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = sh.on; cb.setAttribute('aria-label', (sh.name || '棚なし') + 'を含める');
+      cb.onchange = () => { sh.on = cb.checked; renderPtsOrder(); };
+      const no = document.createElement('b'); no.textContent = sh.on ? (ptsOrder.filter(x => x.on).indexOf(sh) + 1) + '台目' : '—';
+      const nm = document.createElement('span'); nm.textContent = (sh.name || '(棚なし)') + '  ' + items.filter(x => (x.shelf || '') === sh.name && x.jan).length + '件';
+      const up = document.createElement('button'); up.type = 'button'; up.textContent = '↑'; up.disabled = i === 0; up.setAttribute('aria-label', '左の台へ');
+      up.onclick = () => { [ptsOrder[i - 1], ptsOrder[i]] = [ptsOrder[i], ptsOrder[i - 1]]; renderPtsOrder(); };
+      const dn = document.createElement('button'); dn.type = 'button'; dn.textContent = '↓'; dn.disabled = i === ptsOrder.length - 1; dn.setAttribute('aria-label', '右の台へ');
+      dn.onclick = () => { [ptsOrder[i + 1], ptsOrder[i]] = [ptsOrder[i], ptsOrder[i + 1]]; renderPtsOrder(); };
+      row.append(cb, no, nm, up, dn); box.appendChild(row);
+    });
+  }
+  function buildPts(){
+    const model = ($('xModel').value || '').replace(/[,\r\n"]/g, ' ').trim();
+    const fromTop = $('xTierTop').checked;
+    const recs = []; let skipped = 0;
+    ptsOrder.filter(x => x.on).forEach((sh, di) => {
+      const rows = sortedItems().filter(x => (x.shelf || '') === sh.name);
+      skipped += rows.filter(x => !x.jan).length;
+      const valid = rows.filter(x => x.jan);
+      const maxTier = Math.max(1, ...valid.map(x => +x.tier || 1));
+      // 段ごとにまとめ、左から1,2,3…と振り直す(連続する同じ商品は1件にまとめてフェース数を合算)
+      const byTier = new Map();
+      valid.forEach(x => { const t = +x.tier || 1; if (!byTier.has(t)) byTier.set(t, []); byTier.get(t).push(x); });
+      [...byTier.keys()].sort((a, b) => a - b).forEach(t => {
+        const tierNo = fromTop ? (maxTier - t + 1) : t;
+        let pos = 0, prev = null;
+        byTier.get(t).forEach(x => {
+          const face = Math.max(1, parseInt(x.face, 10) || 1);
+          if (prev && prev.code === x.jan){ prev.face += face; return; }
+          pos++;
+          prev = { dai: di + 1, dan: tierNo, pos, code: x.jan, face };
+          recs.push(prev);
+        });
+      });
+    });
+    recs.sort((a, b) => a.dai - b.dai || a.dan - b.dan || a.pos - b.pos);
+    const lines = [
+      '共通棚割情報,Ｖ1．0,',
+      model,
+      '棚台番号,棚段番号,棚位置,商品コード,フェース数,フェース面,フェース回転,積上数,陳列種別'
+    ];
+    recs.forEach(r => lines.push([r.dai, r.dan, r.pos, r.code, Math.min(999, r.face), 1, 0, 1, 1].join(',')));
+    return { text: lines.join('\r\n') + '\r\n', count: recs.length, skipped, dai: ptsOrder.filter(x => x.on).length };
+  }
+  function updatePtsNote(){
+    if ($('xFmtPts').checked){
+      const r = buildPts();
+      $('xNote').textContent = r.dai + '台・' + r.count + '件を出力します' + (r.skipped ? '(JANのない ' + r.skipped + ' 件は除外)' : '') + '。';
+    } else $('xNote').textContent = items.length + '件を出力します。';
+  }
+  function openExport(){
+    if (!items.length){ status('リストが空です', true); return; }
+    const names = ptsShelves();
+    const prev = ptsOrder.map(x => x.name).filter(n => names.includes(n));
+    ptsOrder = prev.concat(names.filter(n => !prev.includes(n))).map(n => ({ name: n, on: true }));
+    $('xModel').value = settings.ptsModel || (names[0] ? names[0] + (names.length > 1 ? '〜' + names[names.length - 1] : '') : '棚割モデル');
+    $('xTierTop').checked = settings.tierFrom === 'top'; $('xTierBottom').checked = settings.tierFrom !== 'top';
+    $('xFmtPts').checked = settings.exportFmt === 'pts'; $('xFmtCsv').checked = settings.exportFmt !== 'pts';
+    $('xPtsBox').hidden = !$('xFmtPts').checked;
+    renderPtsOrder(); updatePtsNote();
+    setPaused(true, 'export');
+    $('exportDlg').showModal();
+  }
+  $('exportBtn').onclick = openExport;
+  ['xFmtCsv', 'xFmtPts'].forEach(id => $(id).onchange = () => { $('xPtsBox').hidden = !$('xFmtPts').checked; updatePtsNote(); });
+  $('xOrder').addEventListener('change', updatePtsNote);
+  $('xOrder').addEventListener('click', () => setTimeout(updatePtsNote, 0));
+  $('xCancel').onclick = () => $('exportDlg').close();
+  $('exportDlg').addEventListener('close', () => setPaused(false, 'export'));
+  $('exportForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const pts = $('xFmtPts').checked;
+    settings.exportFmt = pts ? 'pts' : 'csv';
+    if (pts){
+      settings.tierFrom = $('xTierTop').checked ? 'top' : 'bottom';
+      settings.ptsModel = $('xModel').value.trim();
+    }
+    persistSettings(); renderLoc();
+    if (!pts){
+      $('exportDlg').close();
+      await saveFile('POPリスト_' + stamp() + '.csv', new Blob([csv()], { type: 'text/csv' }), 'CSV');
+      return;
+    }
+    const r = buildPts();
+    if (!r.count){ $('xNote').textContent = '出力できる商品がありません。JANのある商品と、出力する台を確認してください。'; return; }
+    let blob;
+    try {
+      // 棚割ソフトは Shift_JIS のCSVを前提にしているため、Shift_JIS で保存する
+      const sjis = Encoding.convert(Encoding.stringToCode(r.text), { to: 'SJIS', from: 'UNICODE' });
+      blob = new Blob([new Uint8Array(sjis)], { type: 'text/csv' });
+    } catch(err){ blob = new Blob([r.text], { type: 'text/csv' }); }
+    $('exportDlg').close();
+    const base = (settings.ptsModel || 'PTS').replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 40);
+    await saveFile(base + '_PTS_' + stamp() + '.csv', blob, 'PTSファイル');
+  });
+
   $('copyBtn').onclick = async () => {
     if (!items.length){ status('リストが空です', true); return; }
     const text = csv().replace(/^\uFEFF/, '');
