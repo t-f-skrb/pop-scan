@@ -39,6 +39,18 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
   padding:calc(env(safe-area-inset-top,0px) + 8px) 12px 8px}
 @media (prefers-color-scheme: dark){ .top{background:#0E1122} }
 .top h1{font-size:1.05rem;margin:0;font-weight:800;flex:1}
+.top .gon{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;background:rgba(255,255,255,.1);text-align:left;padding:4px 12px;min-height:44px}
+.top .gon small{font-size:.7rem;opacity:.75;font-weight:500;line-height:1.2}
+.top .gon b{font-size:1rem;font-weight:800;line-height:1.3;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top .gon b::after{content:" ▾";font-size:.8rem;opacity:.8}
+.glist{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.glist button{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 10px;text-align:left;background:var(--field);box-shadow:inset 0 0 0 1.5px var(--rule);padding:10px 14px;min-height:56px}
+.glist button[aria-current="true"]{box-shadow:inset 0 0 0 2.5px var(--ink);background:var(--paper)}
+.glist b{font-size:1rem;overflow-wrap:anywhere}
+.glist small{grid-column:1;color:var(--sub);font-weight:500;font-size:.8rem}
+.glist .n{grid-row:1/span 2;grid-column:2;font-variant-numeric:tabular-nums;color:var(--sub);font-weight:700}
+.row2{display:flex;gap:8px;margin-top:8px}
+.row2>*{flex:1}
 .top .count{font-size:.85rem;opacity:.8}
 .top .count b{font-size:1.1rem;opacity:1;font-variant-numeric:tabular-nums}
 .top button{color:#fff;min-height:38px;padding:6px 10px;font-weight:600;background:rgba(255,255,255,.1)}
@@ -156,7 +168,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
 </head>
 <body>
 <header class="top">
-  <h1>POPスキャン</h1>
+  <button class="gon" id="gonBtn" aria-label="ゴンドラを切り替え"><small>ゴンドラ</small><b id="gonName">ゴンドラ1</b></button>
   <span class="count"><b id="count">0</b> 件</span>
   <button id="setBtn" aria-label="設定">設定</button>
 </header>
@@ -262,6 +274,13 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
       <option value="pdf">PDF(印刷・共有用の一覧表)</option>
       <option value="pts">棚POWER用 PTS(共通棚割情報 Ver1.0)</option>
     </select>
+    <div id="xScopeBox">
+      <label class="f" for="xScope">出力する範囲</label>
+      <select id="xScope">
+        <option value="cur">今のゴンドラだけ</option>
+        <option value="all">すべてのゴンドラ(ゴンドラ別に分けて出力)</option>
+      </select>
+    </div>
     <div id="xPtsBox" hidden>
       <p class="hint">共通棚割情報(PTS)Ver1.0 形式で出力します。棚POWERでは「外部棚割モデルを開く」で「棚割配置情報(PTS)」を選んで読み込みます。</p>
       <label class="f" for="xModel">棚割モデル名</label>
@@ -272,7 +291,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
         <label><input type="radio" name="xtier" id="xTierTop"> 上から数えた</label>
       </div>
       <p class="hint">「上から数えた」を選ぶと、各棚で読み取った一番下の段を1段目として、下から数えた番号に変換します。</p>
-      <label class="f">台の並び(上が左端の1台目)</label>
+      <label class="f">台の並び(上が左端の1台目)。PTSは今のゴンドラを1つの棚割モデルとして出力します</label>
       <div id="xOrder"></div>
       <p class="hint">順番は段ごとに左から振り直し、並んで続く同じ商品は1件にまとめてフェース数を合算します。フェース面は正面、陳列種別は棚板(置き)で出力します。</p>
     </div>
@@ -280,6 +299,25 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     <div class="acts">
       <button type="button" class="secondary" id="xCancel">キャンセル</button>
       <button type="submit" class="primary">書き出す</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ゴンドラ -->
+<dialog id="gonDlg">
+  <form method="dialog" class="dlg" id="gonForm">
+    <h3>ゴンドラ</h3>
+    <p class="hint">ゴンドラごとに読み取ったリストを分けて保存します。タップすると、そのゴンドラに切り替わります。</p>
+    <div class="glist" id="gList"></div>
+    <label class="f" for="gName">新しいゴンドラ/名前の変更</label>
+    <input id="gName" type="text" autocomplete="off" placeholder="例:おつまみ①、A列ゴンドラ3">
+    <div class="row2">
+      <button type="button" class="primary" id="gAdd">新しく作る</button>
+      <button type="button" class="secondary" id="gRename">今のゴンドラの名前を変更</button>
+    </div>
+    <div class="acts">
+      <button type="button" class="ghost danger" id="gDel">今のゴンドラを削除</button>
+      <button type="submit" class="secondary">閉じる</button>
     </div>
   </form>
 </dialog>
@@ -319,7 +357,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     </div>
     <p class="hint" id="sMsg"></p>
     <div class="acts">
-      <button type="button" class="ghost danger" id="sClear">リストをすべて削除</button>
+      <button type="button" class="ghost danger" id="sClear">今のゴンドラのリストを削除</button>
       <button type="submit" class="primary" id="sDone">閉じる</button>
     </div>
   </form>
@@ -338,12 +376,24 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
   // ---------- 保存 ----------
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch(e){ return d; } };
   const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){ status('端末に保存できませんでした。空き容量を確認してください。', true); } };
-  let items = load(ITEMS_KEY, []);
+  const GON_KEY = 'pop-scan-gondolas-v1';
+  // すべてのゴンドラの商品を allItems に保存し、画面では今のゴンドラの分だけを items として扱う
+  let allItems = load(ITEMS_KEY, []);
+  let gondolas = load(GON_KEY, []);
+  let items = [];
   const settings = Object.assign({ beep: true, noDup: true, ocr: true, mode: 'auto', shelfOn: true, shelf: '', tier: 1 }, load(SET_KEY, {}));
   if (settings.vibrate === undefined) settings.vibrate = settings.beep; // 旧版の設定を引き継ぐ
   const canVibrate = typeof navigator.vibrate === 'function';
   delete settings.key; delete settings.ai; delete settings.model; save(SET_KEY, settings); // 旧版のAPIキーが残っていれば消す
-  const persistItems = () => save(ITEMS_KEY, items);
+  if (!gondolas.length) gondolas = [{ id: 'g' + Date.now().toString(36), name: 'ゴンドラ1', createdAt: Date.now() }];
+  if (!settings.gid || !gondolas.some(g => g.id === settings.gid)) settings.gid = gondolas[0].id;
+  allItems.forEach(x => { if (!x.gid) x.gid = gondolas[0].id; }); // 旧版のデータは最初のゴンドラへ
+  const refreshView = () => { items = allItems.filter(x => x.gid === settings.gid); };
+  refreshView();
+  const persistItems = () => save(ITEMS_KEY, allItems);
+  const persistGondolas = () => save(GON_KEY, gondolas);
+  const curGon = () => gondolas.find(g => g.id === settings.gid) || gondolas[0];
+  save(ITEMS_KEY, allItems); save(GON_KEY, gondolas);
   const persistSettings = () => save(SET_KEY, settings);
 
   const status = (m, err) => { $('status').textContent = m || ''; $('status').classList.toggle('err', !!err); };
@@ -409,6 +459,76 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     $('shelfDlg').close();
   });
   $('shelfDlg').addEventListener('close', () => setPaused(false, 'shelf'));
+
+  // ---------- ゴンドラ ----------
+  function touchGon(){ const g = curGon(); if (g){ g.updatedAt = Date.now(); persistGondolas(); } }
+  function renderGon(){ $('gonName').textContent = curGon().name; }
+  function switchGon(id){
+    const from = curGon();
+    if (from){ from.shelf = settings.shelf; from.tier = settings.tier; } // ゴンドラごとに最後の棚・段を覚える
+    settings.gid = id;
+    const to = curGon();
+    settings.shelf = to.shelf || ''; settings.tier = to.tier || 1;
+    persistGondolas(); persistSettings(); refreshView(); showLast(null); render(); renderGon();
+    status('「' + to.name + '」に切り替えました(' + items.length + '件)');
+  }
+  function renderGonList(){
+    const box = $('gList'); box.textContent = '';
+    gondolas.forEach(g => {
+      const b = document.createElement('button'); b.type = 'button';
+      b.setAttribute('aria-current', String(g.id === settings.gid));
+      const n = allItems.filter(x => x.gid === g.id).length;
+      const nm = document.createElement('b'); nm.textContent = g.name;
+      const ct = document.createElement('span'); ct.className = 'n'; ct.textContent = n + '件';
+      const sm = document.createElement('small');
+      const t = g.updatedAt ? new Date(g.updatedAt) : null, p2 = v => String(v).padStart(2, '0');
+      sm.textContent = (g.id === settings.gid ? '使用中' : '') + (t ? (g.id === settings.gid ? '・' : '') + '最終更新 ' + (t.getMonth() + 1) + '/' + t.getDate() + ' ' + p2(t.getHours()) + ':' + p2(t.getMinutes()) : '');
+      b.append(nm, ct, sm);
+      b.onclick = () => { if (g.id !== settings.gid) switchGon(g.id); $('gonDlg').close(); };
+      box.appendChild(b);
+    });
+  }
+  function nextGonName(){
+    const last = gondolas[gondolas.length - 1].name, b = bumpName(last);
+    if (b && !gondolas.some(g => g.name === b)) return b;
+    let i = gondolas.length + 1; while (gondolas.some(g => g.name === 'ゴンドラ' + i)) i++;
+    return 'ゴンドラ' + i;
+  }
+  $('gonBtn').onclick = () => {
+    renderGonList(); $('gName').value = ''; $('gName').placeholder = '例:' + nextGonName();
+    $('gDel').hidden = false;
+    setPaused(true, 'gon'); $('gonDlg').showModal();
+  };
+  $('gAdd').onclick = () => {
+    const name = $('gName').value.trim() || nextGonName();
+    if (gondolas.some(g => g.name === name)){ alert('同じ名前のゴンドラがあります。別の名前にしてください。'); return; }
+    const g = { id: 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name, createdAt: Date.now(), shelf: '', tier: 1 };
+    gondolas.push(g); persistGondolas();
+    switchGon(g.id); $('gonDlg').close();
+  };
+  $('gRename').onclick = () => {
+    const name = $('gName').value.trim();
+    if (!name){ $('gName').focus(); return; }
+    if (gondolas.some(g => g.name === name && g.id !== settings.gid)){ alert('同じ名前のゴンドラがあります。'); return; }
+    curGon().name = name; persistGondolas(); renderGon(); renderGonList(); $('gName').value = '';
+    status('名前を「' + name + '」に変更しました');
+  };
+  $('gDel').onclick = () => {
+    const g = curGon(), n = items.length;
+    if (gondolas.length === 1){
+      if (!n){ alert('ゴンドラが1つだけのときは削除できません。'); return; }
+      if (!confirm('ゴンドラが1つだけなので、「' + g.name + '」のリスト ' + n + ' 件を削除して空にします。よろしいですか?')) return;
+      allItems = allItems.filter(x => x.gid !== g.id); persistItems(); refreshView(); render(); showLast(null); renderGonList();
+      return;
+    }
+    if (!confirm('「' + g.name + '」と、そのリスト ' + n + ' 件を削除します。元に戻せません。よろしいですか?')) return;
+    allItems = allItems.filter(x => x.gid !== g.id);
+    gondolas = gondolas.filter(x => x.id !== g.id);
+    persistItems(); persistGondolas();
+    settings.gid = null; switchGon(gondolas[0].id);
+    $('gonDlg').close();
+  };
+  $('gonDlg').addEventListener('close', () => setPaused(false, 'gon'));
 
   // ---------- 一覧 ----------
   function priceText(it){
@@ -478,7 +598,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     const base = { id: newId(), createdAt: Date.now(), jan: '', name: '', spec: '', price: '', priceTax: '' };
     if (loc && rec.tier === undefined){ base.shelf = loc.shelf; base.tier = loc.tier; base.pos = nextPosOf(loc.shelf, loc.tier); }
     const it = Object.assign(base, rec);
-    items.push(it); persistItems(); render(); return it;
+    it.gid = settings.gid; allItems.push(it); refreshView(); touchGon(); persistItems(); render(); return it;
   }
   function updateItem(id, rec){
     const it = items.find(x => x.id === id); if (!it) return null;
@@ -487,7 +607,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     return it;
   }
   function removeItem(id){
-    items = items.filter(x => x.id !== id); persistItems(); render();
+    allItems = allItems.filter(x => x.id !== id); refreshView(); touchGon(); persistItems(); render();
     if (id === lastId) showLast(null);
   }
 
@@ -1048,6 +1168,19 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
   };
 
   // ---------- CSV ----------
+  function csvAll(){
+    // すべてのゴンドラ:先頭に「ゴンドラ」列を付け、ゴンドラの並び順に出力
+    const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const withLoc = allItems.some(x => x.shelf || x.tier);
+    const head = ['ゴンドラ'].concat(withLoc ? ['棚', '段', '順番', 'フェース数'] : []).concat(['JANコード', '商品名', '規格', '本体価格', '税込価格']);
+    const lines = [head.map(q).join(',')];
+    gonsWithData().forEach(g => withGon(g.id, () => {
+      const { rows } = tableData(withLoc);
+      const janCol = withLoc ? 4 : 0;
+      rows.forEach(r => lines.push([q(g.name)].concat(r.map((v, i) => i === janCol ? (v ? '="' + v + '"' : '') : (typeof v === 'number' ? v : q(v)))).join(',')));
+    }));
+    return '\uFEFF' + lines.join('\r\n') + '\r\n';
+  }
   function csv(){
     const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
     const withLoc = items.some(x => x.shelf || x.tier);
@@ -1074,9 +1207,20 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     return true;
   }
 
+  // 指定したゴンドラの商品を一時的に items にして処理する(出力用)
+  function withGon(gid, fn){
+    const saved = items; items = allItems.filter(x => x.gid === gid);
+    try { return fn(); } finally { items = saved; }
+  }
+  async function withGonAsync(gid, fn){
+    const saved = items; items = allItems.filter(x => x.gid === gid);
+    try { return await fn(); } finally { items = saved; }
+  }
+  const gonsWithData = () => gondolas.filter(g => allItems.some(x => x.gid === g.id));
+
   // ---------- 表形式の出力データ(Excel・PDF 共通)----------
-  function tableData(){
-    const withLoc = items.some(x => x.shelf || x.tier);
+  function tableData(forceLoc){
+    const withLoc = forceLoc === undefined ? items.some(x => x.shelf || x.tier) : forceLoc;
     const list = withLoc ? sortedItems() : items.slice();
     const head = (withLoc ? ['棚', '段', '順番', 'フェース数'] : []).concat(['JANコード', '商品名', '規格', '本体価格', '税込価格']);
     const rows = list.map(it => (withLoc ? [it.shelf || '', +it.tier || '', +it.pos || '', +it.face || 1] : [])
@@ -1085,7 +1229,24 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
   }
 
   // ---------- Excel(.xlsx)----------
+  const sheetName = (name, used) => {
+    let n = String(name || 'ゴンドラ').replace(/[\[\]:*?\/\\]/g, '_').slice(0, 31) || 'ゴンドラ', base = n, i = 2;
+    while (used.has(n)){ const sfx = '(' + i++ + ')'; n = base.slice(0, 31 - sfx.length) + sfx; }
+    used.add(n); return n;
+  };
+  function buildXlsxAll(){
+    const wb = XLSX.utils.book_new(), used = new Set();
+    gonsWithData().forEach(g => withGon(g.id, () => XLSX.utils.book_append_sheet(wb, xlsxSheet(), sheetName(g.name, used))));
+    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    return new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  }
   function buildXlsx(){
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, xlsxSheet(), sheetName(curGon().name, new Set()));
+    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    return new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  }
+  function xlsxSheet(){
     const { withLoc, head, rows } = tableData();
     const ws = XLSX.utils.aoa_to_sheet([head].concat(rows));
     // JANは文字列として保存する(指数表示や先頭0の欠落を防ぐ)
@@ -1097,10 +1258,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     ws['!cols'] = (withLoc ? [{ wch: 14 }, { wch: 5 }, { wch: 6 }, { wch: 9 }] : [])
       .concat([{ wch: 16 }, { wch: 36 }, { wch: 10 }, { wch: 10 }, { wch: 10 }]);
     ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length, c: head.length - 1 } }) };
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'POPリスト');
-    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    return new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    return ws;
   }
 
   // ---------- PDF ----------
@@ -1113,7 +1271,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     while (lo < hi){ const m = (lo + hi + 1) >> 1; if (g.measureText(text.slice(0, m) + '…').width <= w) lo = m; else hi = m - 1; }
     return text.slice(0, lo) + '…';
   }
-  async function renderPdfPages(){
+  async function renderPdfPages(title){
     const { withLoc, list } = tableData();
     const W = 1240, H = 1754, M = 70, RH = 46, HEAD_H = 50;
     const cols = (withLoc ? [{ k: 'pos', t: '順番', w: 70, a: 'right' }] : [])
@@ -1145,7 +1303,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
       const g = c.getContext('2d');
       g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
       g.fillStyle = '#1B1F3B'; g.textBaseline = 'middle';
-      g.font = '700 40px ' + PDF_FONT; g.fillText('POPリスト', M, M + 24);
+      g.font = '700 40px ' + PDF_FONT; g.fillText(fitText(g, title || 'POPリスト', W - M * 2 - 380), M, M + 24);
       g.font = '400 22px ' + PDF_FONT; g.fillStyle = '#5B6078';
       g.textAlign = 'right'; g.fillText(dateText + '  全' + list.length + '件', W - M, M + 28); g.textAlign = 'left';
       g.fillStyle = '#F5C400'; g.fillRect(M, M + 64, W - M * 2, 6);
@@ -1278,23 +1436,33 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     if ($('xFmt').value === 'pts'){
       const r = buildPts();
       $('xNote').textContent = r.dai + '台・' + r.count + '件を出力します' + (r.skipped ? '(JANのない ' + r.skipped + ' 件は除外)' : '') + '。';
-    } else $('xNote').textContent = items.length + '件を出力します。' + ($('xFmt').value === 'pdf' ? '(A4縦・棚と段ごとに見出し付き)' : '');
+    } else {
+      const all = $('xScope').value === 'all', fmt = $('xFmt').value;
+      const n = all ? allItems.length : items.length, gn = all ? gonsWithData().length : 1;
+      $('xNote').textContent = (all ? gn + 'ゴンドラ・' : '「' + curGon().name + '」') + n + '件を出力します。'
+        + (fmt === 'pdf' ? '(A4縦・棚と段ごとに見出し付き' + (all ? '、ゴンドラごとにページを分けます' : '') + ')'
+          : fmt === 'xlsx' && all ? '(ゴンドラごとにシートを分けます)'
+          : fmt === 'csv' && all ? '(先頭に「ゴンドラ」列が付きます)' : '');
+    }
   }
   function openExport(){
-    if (!items.length){ status('リストが空です', true); return; }
+    if (!allItems.length){ status('リストが空です', true); return; }
     const names = ptsShelves();
     const prev = ptsOrder.map(x => x.name).filter(n => names.includes(n));
     ptsOrder = prev.concat(names.filter(n => !prev.includes(n))).map(n => ({ name: n, on: true }));
-    $('xModel').value = settings.ptsModel || (names[0] ? names[0] + (names.length > 1 ? '〜' + names[names.length - 1] : '') : '棚割モデル');
+    $('xModel').value = curGon().ptsModel || curGon().name;
+    $('xScope').value = (settings.exportScope === 'all' && gonsWithData().length > 1) ? 'all' : 'cur';
+    $('xScope').options[1].disabled = gondolas.length < 2;
     $('xTierTop').checked = settings.tierFrom === 'top'; $('xTierBottom').checked = settings.tierFrom !== 'top';
     $('xFmt').value = ['csv', 'xlsx', 'pdf', 'pts'].includes(settings.exportFmt) ? settings.exportFmt : 'csv';
-    $('xPtsBox').hidden = $('xFmt').value !== 'pts';
+    $('xPtsBox').hidden = $('xFmt').value !== 'pts'; $('xScopeBox').hidden = $('xFmt').value === 'pts';
     renderPtsOrder(); updatePtsNote();
     setPaused(true, 'export');
     $('exportDlg').showModal();
   }
   $('exportBtn').onclick = openExport;
-  $('xFmt').onchange = () => { $('xPtsBox').hidden = $('xFmt').value !== 'pts'; updatePtsNote(); };
+  $('xFmt').onchange = () => { $('xPtsBox').hidden = $('xFmt').value !== 'pts'; $('xScopeBox').hidden = $('xFmt').value === 'pts'; updatePtsNote(); };
+  $('xScope').onchange = updatePtsNote;
   $('xOrder').addEventListener('change', updatePtsNote);
   $('xOrder').addEventListener('click', () => setTimeout(updatePtsNote, 0));
   $('xCancel').onclick = () => $('exportDlg').close();
@@ -1306,27 +1474,36 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     settings.exportFmt = fmt;
     if (pts){
       settings.tierFrom = $('xTierTop').checked ? 'top' : 'bottom';
-      settings.ptsModel = $('xModel').value.trim();
+      curGon().ptsModel = $('xModel').value.trim(); persistGondolas();
     }
+    const all = !pts && $('xScope').value === 'all';
+    settings.exportScope = $('xScope').value;
     persistSettings(); renderLoc();
+    if (!all && !items.length){ $('xNote').textContent = 'このゴンドラのリストは空です。'; return; }
+    const fname = ext => (all ? 'POPリスト_全ゴンドラ' : 'POPリスト_' + curGon().name).replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 50) + '_' + stamp() + '.' + ext;
     if (fmt === 'csv'){
       $('exportDlg').close();
-      await saveFile('POPリスト_' + stamp() + '.csv', new Blob([csv()], { type: 'text/csv' }), 'CSV');
+      await saveFile(fname('csv'), new Blob([all ? csvAll() : csv()], { type: 'text/csv' }), 'CSV');
       return;
     }
     if (fmt === 'xlsx'){
       let blob;
-      try { blob = buildXlsx(); } catch(err){ $('xNote').textContent = 'Excelファイルを作れませんでした。'; return; }
+      try { blob = all ? buildXlsxAll() : buildXlsx(); } catch(err){ $('xNote').textContent = 'Excelファイルを作れませんでした。'; return; }
       $('exportDlg').close();
-      await saveFile('POPリスト_' + stamp() + '.xlsx', blob, 'Excelファイル');
+      await saveFile(fname('xlsx'), blob, 'Excelファイル');
       return;
     }
     if (fmt === 'pdf'){
       $('xNote').textContent = 'PDFを作成しています…';
       let blob;
-      try { blob = makePdf(await renderPdfPages()); } catch(err){ $('xNote').textContent = 'PDFを作れませんでした。'; return; }
+      try {
+        let pages = [];
+        if (all){ for (const g of gonsWithData()) pages = pages.concat(await withGonAsync(g.id, () => renderPdfPages(g.name))); }
+        else pages = await renderPdfPages(curGon().name);
+        blob = makePdf(pages);
+      } catch(err){ $('xNote').textContent = 'PDFを作れませんでした。'; return; }
       $('exportDlg').close();
-      await saveFile('POPリスト_' + stamp() + '.pdf', blob, 'PDF');
+      await saveFile(fname('pdf'), blob, 'PDF');
       return;
     }
     const r = buildPts();
@@ -1338,7 +1515,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
       blob = new Blob([new Uint8Array(sjis)], { type: 'text/csv' });
     } catch(err){ blob = new Blob([r.text], { type: 'text/csv' }); }
     $('exportDlg').close();
-    const base = (settings.ptsModel || 'PTS').replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 40);
+    const base = (curGon().ptsModel || curGon().name || 'PTS').replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 40);
     await saveFile(base + '_PTS_' + stamp() + '.csv', blob, 'PTSファイル');
   });
 
@@ -1362,13 +1539,13 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     persistSettings(); setPaused(false, 'settings');
   });
   $('sClear').onclick = () => {
-    if (!items.length){ $('sMsg').textContent = 'リストは空です'; return; }
-    if (!confirm('リストの ' + items.length + ' 件をすべて削除します。よろしいですか?')) return;
-    items = []; persistItems(); render(); showLast(null); status('リストを削除しました');
+    if (!items.length){ $('sMsg').textContent = 'このゴンドラのリストは空です'; return; }
+    if (!confirm('「' + curGon().name + '」の ' + items.length + ' 件をすべて削除します。よろしいですか?(他のゴンドラは消えません)')) return;
+    allItems = allItems.filter(x => x.gid !== settings.gid); refreshView(); persistItems(); render(); showLast(null); status('このゴンドラのリストを削除しました');
   };
 
   // ---------- 起動 ----------
-  applyMode(); render(); loadMaster();
+  applyMode(); renderGon(); render(); loadMaster();
   if ('serviceWorker' in navigator && location.protocol === 'https:'){
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
