@@ -207,7 +207,8 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
 <dialog id="setDlg">
   <form method="dialog" class="dlg">
     <h3>設定</h3>
-    <label class="sw"><span>読み取り音<small>読み取ったときに音と振動で知らせます</small></span><input type="checkbox" id="sBeep"></label>
+    <label class="sw"><span>読み取り音<small>読み取ったときに音で知らせます</small></span><input type="checkbox" id="sBeep"></label>
+    <label class="sw" id="sVibWrap"><span>振動<small id="sVibNote">読み取ったときに振動で知らせます</small></span><input type="checkbox" id="sVib"></label>
     <label class="sw"><span>値札の文字も読み取る<small>かざした値札から商品名・規格・売価を読み取ります(スマホの中で処理・無料)</small></span><input type="checkbox" id="sOcr"></label>
     <label class="sw"><span>登録済みのJANは追加しない<small>同じ商品を二重に登録しないようにします</small></span><input type="checkbox" id="sNoDup"></label>
     <div class="sw" style="display:block;border-top:1px solid var(--rule)">
@@ -240,6 +241,8 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
   const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){ status('端末に保存できませんでした。空き容量を確認してください。', true); } };
   let items = load(ITEMS_KEY, []);
   const settings = Object.assign({ beep: true, noDup: true, ocr: true, mode: 'auto' }, load(SET_KEY, {}));
+  if (settings.vibrate === undefined) settings.vibrate = settings.beep; // 旧版の設定を引き継ぐ
+  const canVibrate = typeof navigator.vibrate === 'function';
   delete settings.key; delete settings.ai; delete settings.model; save(SET_KEY, settings); // 旧版のAPIキーが残っていれば消す
   const persistItems = () => save(ITEMS_KEY, items);
   const persistSettings = () => save(SET_KEY, settings);
@@ -360,16 +363,18 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
   // ---------- 音 ----------
   let actx = null;
   function beep(ok){
-    if (!settings.beep) return;
-    try {
-      if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
-      const o = actx.createOscillator(), g = actx.createGain();
-      o.frequency.value = ok ? 1760 : 440; o.type = 'square';
-      g.gain.setValueAtTime(0.08, actx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + (ok ? 0.09 : 0.25));
-      o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + (ok ? 0.1 : 0.26));
-    } catch(e){}
-    if (navigator.vibrate) try { navigator.vibrate(ok ? 50 : [60, 60, 60]); } catch(e){}
+    if (settings.beep){
+      try {
+        if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = actx.createOscillator(), g = actx.createGain();
+        o.frequency.value = ok ? 1760 : 440; o.type = 'square';
+        g.gain.setValueAtTime(0.08, actx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + (ok ? 0.09 : 0.25));
+        o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + (ok ? 0.1 : 0.26));
+      } catch(e){}
+    }
+    if (settings.vibrate && canVibrate) try { navigator.vibrate(ok ? 50 : [60, 60, 60]); } catch(e){}
   }
+
 
   // ---------- 商品マスタ ----------
   // マスタは件数が多くなりやすいので IndexedDB に保存する
@@ -881,11 +886,13 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
 
   // ---------- 設定 ----------
   function fillSettings(){
-    $('sBeep').checked = settings.beep; $('sNoDup').checked = settings.noDup; $('sOcr').checked = settings.ocr; $('sMsg').textContent = '';
+    $('sBeep').checked = settings.beep; $('sVib').checked = settings.vibrate;
+    $('sVib').disabled = !canVibrate;
+    $('sVibNote').textContent = canVibrate ? '読み取ったときに振動で知らせます' : 'この端末・ブラウザは振動に対応していません(iPhoneなど)'; $('sNoDup').checked = settings.noDup; $('sOcr').checked = settings.ocr; $('sMsg').textContent = '';
   }
   $('setBtn').onclick = () => { fillSettings(); setPaused(true, 'settings'); $('setDlg').showModal(); };
   $('setDlg').addEventListener('close', () => {
-    settings.beep = $('sBeep').checked; settings.noDup = $('sNoDup').checked; settings.ocr = $('sOcr').checked;
+    settings.beep = $('sBeep').checked; if (canVibrate) settings.vibrate = $('sVib').checked; settings.noDup = $('sNoDup').checked; settings.ocr = $('sOcr').checked;
     if (settings.ocr && running) ocrInit();
     persistSettings(); setPaused(false, 'settings');
   });
