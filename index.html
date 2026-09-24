@@ -76,6 +76,23 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .note.mst{background:rgba(31,122,77,.14);color:var(--ok)}
 .note.ocr{background:rgba(245,196,0,.25);color:var(--ink)}
 
+.loc{display:grid;grid-template-columns:1.3fr 1.4fr .8fr;gap:8px;margin-bottom:10px}
+.loc>*{background:var(--paper);border-radius:10px;min-height:64px;padding:8px 10px;display:flex;flex-direction:column;justify-content:center;min-width:0}
+.loc small{font-size:.72rem;color:var(--sub);font-weight:500;line-height:1.2}
+.loc b{font-size:1.15rem;font-weight:800;line-height:1.3;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.loc .shelf{align-items:flex-start;text-align:left;box-shadow:inset 0 0 0 1.5px var(--rule)}
+.loc .shelf b.none{color:var(--sub);font-weight:600;font-size:1rem}
+.loc .tier{flex-direction:row;align-items:center;justify-content:space-between;gap:4px;padding:6px}
+.loc .tier>div{text-align:center;flex:1}
+.loc .tier b{font-size:1.5rem}
+.loc .tier button{width:44px;height:48px;min-height:0;padding:0;font-size:1.5rem;line-height:1;background:var(--ink);color:#fff;border-radius:8px;flex:none}
+@media (prefers-color-scheme: dark){ .loc .tier button{background:var(--tag);color:var(--tag-ink)} }
+.loc .next{text-align:center;align-items:center}
+.grp{font-size:.85rem;font-weight:700;color:var(--sub);margin:14px 4px 6px;display:flex;justify-content:space-between}
+.grp:first-child{margin-top:0}
+.list .pos{display:inline-block;min-width:2.2em;font-weight:800;color:var(--ink);margin-right:6px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chips button{background:var(--field);box-shadow:inset 0 0 0 1.5px var(--rule);font-weight:600;min-height:40px;padding:6px 12px}
 .modes{display:grid;grid-template-columns:1fr 1fr;background:var(--paper);border-radius:10px;padding:4px;gap:4px;margin-bottom:10px}
 .modes button{min-height:40px;font-weight:600;color:var(--sub)}
 .modes button[aria-pressed="true"]{background:var(--ink);color:#fff}
@@ -162,6 +179,16 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     </div>
   </div>
 
+  <div class="loc" id="loc">
+    <button class="shelf" id="shelfBtn" aria-label="棚を変更"><small>棚(タップで変更)</small><b id="shelfName">未設定</b></button>
+    <div class="tier">
+      <button id="tierDown" aria-label="段を1つ減らす">−</button>
+      <div><small>段</small><b id="tierNo">1</b></div>
+      <button id="tierUp" aria-label="段を1つ増やす">+</button>
+    </div>
+    <div class="next"><small>次の順番</small><b id="nextPos">1</b></div>
+  </div>
+
   <div class="modes" role="group" aria-label="読み取り後の動作">
     <button id="modeAuto" aria-pressed="true">かざして自動追加</button>
     <button id="modeConfirm" aria-pressed="false">確認してから追加</button>
@@ -195,10 +222,31 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
       <div><label class="f" for="ePrice">本体価格</label><input id="ePrice" type="text" inputmode="numeric" autocomplete="off" placeholder="398"></div>
       <div><label class="f" for="eTax">税込価格</label><input id="eTax" type="text" inputmode="numeric" autocomplete="off" placeholder="429"></div>
     </div>
+    <div class="r3" id="eLoc">
+      <div><label class="f" for="eShelf">棚</label><input id="eShelf" type="text" autocomplete="off" list="shelfList" placeholder="A-1"></div>
+      <div><label class="f" for="eTier">段</label><input id="eTier" type="text" inputmode="numeric" autocomplete="off" placeholder="1"></div>
+      <div><label class="f" for="ePos">順番</label><input id="ePos" type="text" inputmode="numeric" autocomplete="off" placeholder="1"></div>
+    </div>
+    <datalist id="shelfList"></datalist>
     <div class="acts">
       <button type="button" class="ghost danger" id="eDel">削除</button>
       <button type="button" class="secondary" id="eCancel">キャンセル</button>
       <button type="submit" class="primary" id="eSave">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 棚の変更 -->
+<dialog id="shelfDlg">
+  <form method="dialog" class="dlg" id="shelfForm">
+    <h3>棚を変更</h3>
+    <label class="f" for="shName">棚の名前</label>
+    <input id="shName" type="text" autocomplete="off" placeholder="例:A-1、おつまみ①、エンド3">
+    <p class="hint">棚を変えると、段は1段目に戻ります。</p>
+    <div class="chips" id="shChips"></div>
+    <div class="acts">
+      <button type="button" class="secondary" id="shCancel">キャンセル</button>
+      <button type="submit" class="primary">決定</button>
     </div>
   </form>
 </dialog>
@@ -210,7 +258,8 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     <label class="sw"><span>読み取り音<small>読み取ったときに音で知らせます</small></span><input type="checkbox" id="sBeep"></label>
     <label class="sw" id="sVibWrap"><span>振動<small id="sVibNote">読み取ったときに振動で知らせます</small></span><input type="checkbox" id="sVib"></label>
     <label class="sw"><span>値札の文字も読み取る<small>かざした値札から商品名・規格・売価を読み取ります(スマホの中で処理・無料)</small></span><input type="checkbox" id="sOcr"></label>
-    <label class="sw"><span>登録済みのJANは追加しない<small>同じ商品を二重に登録しないようにします</small></span><input type="checkbox" id="sNoDup"></label>
+    <label class="sw"><span>棚・段を記録する<small>読み取った商品に、棚・段・順番を付けて記録します</small></span><input type="checkbox" id="sShelf"></label>
+    <label class="sw"><span>登録済みのJANは追加しない<small id="sNoDupNote">同じ商品を二重に登録しないようにします(棚・段を記録しているときは、同じ段の中だけで判定します)</small></span><input type="checkbox" id="sNoDup"></label>
     <div class="sw" style="display:block;border-top:1px solid var(--rule)">
       <span>商品マスタ(任意)<small>JAN・商品名・規格・売価のCSVを読み込んでおくと、かざしたときに商品名などが自動で入ります</small></span>
       <p class="hint" id="mInfo" style="margin:8px 0">読み込まれていません</p>
@@ -240,7 +289,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch(e){ return d; } };
   const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){ status('端末に保存できませんでした。空き容量を確認してください。', true); } };
   let items = load(ITEMS_KEY, []);
-  const settings = Object.assign({ beep: true, noDup: true, ocr: true, mode: 'auto' }, load(SET_KEY, {}));
+  const settings = Object.assign({ beep: true, noDup: true, ocr: true, mode: 'auto', shelfOn: true, shelf: '', tier: 1 }, load(SET_KEY, {}));
   if (settings.vibrate === undefined) settings.vibrate = settings.beep; // 旧版の設定を引き継ぐ
   const canVibrate = typeof navigator.vibrate === 'function';
   delete settings.key; delete settings.ai; delete settings.model; save(SET_KEY, settings); // 旧版のAPIキーが残っていれば消す
@@ -261,25 +310,97 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     return (10 - s % 10) % 10 === d[n - 1];
   }
 
+  // ---------- 棚・段 ----------
+  const sameLoc = (it, shelf, tier) => (it.shelf || '') === (shelf || '') && (+it.tier || 0) === (+tier || 0);
+  function nextPosOf(shelf, tier){
+    let m = 0; items.forEach(x => { if (sameLoc(x, shelf, tier)) m = Math.max(m, +x.pos || 0); });
+    return m + 1;
+  }
+  const curLoc = () => settings.shelfOn ? { shelf: settings.shelf || '', tier: settings.tier || 1 } : null;
+  function renderLoc(){
+    $('loc').hidden = !settings.shelfOn;
+    if (!settings.shelfOn) return;
+    const nm = $('shelfName');
+    nm.textContent = settings.shelf || '未設定'; nm.classList.toggle('none', !settings.shelf);
+    $('tierNo').textContent = settings.tier;
+    $('nextPos').textContent = nextPosOf(settings.shelf, settings.tier);
+    $('tierDown').disabled = settings.tier <= 1;
+  }
+  function setTier(t){
+    settings.tier = Math.max(1, Math.min(30, t)); persistSettings(); renderLoc();
+    status((settings.shelf ? settings.shelf + ' の ' : '') + settings.tier + '段目 を読み取ります');
+  }
+  $('tierUp').onclick = () => setTier(settings.tier + 1);
+  $('tierDown').onclick = () => setTier(settings.tier - 1);
+  const shelfNames = () => { const seen = []; items.forEach(x => { if (x.shelf && !seen.includes(x.shelf)) seen.push(x.shelf); }); return seen; };
+  function bumpName(n){ // 「A-3」→「A-4」のように末尾の数字を1つ進める
+    const m = String(n || '').match(/^(.*?)(\d+)(\D*)$/);
+    if (!m) return '';
+    return m[1] + String(parseInt(m[2], 10) + 1).padStart(m[2].length, '0') + m[3];
+  }
+  $('shelfBtn').onclick = () => {
+    $('shName').value = settings.shelf || '';
+    const box = $('shChips'); box.textContent = '';
+    const nxt = bumpName(settings.shelf);
+    const add = (label, val) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = () => { $('shName').value = val; }; box.appendChild(b); };
+    if (nxt) add('次の棚:' + nxt, nxt);
+    shelfNames().filter(n => n !== settings.shelf && n !== nxt).slice(-8).reverse().forEach(n => add(n, n));
+    setPaused(true, 'shelf');
+    $('shelfDlg').showModal();
+  };
+  $('shCancel').onclick = () => $('shelfDlg').close();
+  $('shelfForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const v = $('shName').value.trim();
+    if (v !== settings.shelf){ settings.shelf = v; settings.tier = 1; persistSettings(); }
+    renderLoc();
+    status(v ? v + ' の 1段目 を読み取ります' : '棚を未設定にしました');
+    $('shelfDlg').close();
+  });
+  $('shelfDlg').addEventListener('close', () => setPaused(false, 'shelf'));
+
   // ---------- 一覧 ----------
   function priceText(it){
     if (it.price) return '本体' + it.price + '円' + (it.priceTax ? '(税込' + it.priceTax + '円)' : '');
     return it.priceTax ? '税込' + it.priceTax + '円' : '';
   }
+  // 表示と書き出しの並び順:棚(最初に読んだ順)→段→順番
+  function sortedItems(){
+    const order = new Map(); items.forEach(x => { const k = x.shelf || ''; if (!order.has(k)) order.set(k, order.size); });
+    return items.slice().sort((a, b) =>
+      (order.get(a.shelf || '') - order.get(b.shelf || '')) || ((+a.tier || 0) - (+b.tier || 0)) || ((+a.pos || 0) - (+b.pos || 0)) || (a.createdAt - b.createdAt));
+  }
   function render(){
     $('count').textContent = items.length;
+    renderLoc();
     const w = $('listWrap'); w.textContent = '';
     if (!items.length){
       const e = document.createElement('div'); e.className = 'empty';
       e.textContent = 'まだありません。「スキャンを開始」を押して、値札のバーコードにかざしてください。';
       w.appendChild(e); return;
     }
-    const ul = document.createElement('ul'); ul.className = 'list';
-    items.slice().reverse().forEach(it => {
+    const grouped = items.some(x => x.shelf || x.tier);
+    const list = grouped ? sortedItems() : items.slice().reverse();
+    let ul = null, key = null;
+    list.forEach(it => {
+      const k = grouped ? (it.shelf || '') + '\u0000' + (it.tier || '') : '';
+      if (!ul || k !== key){
+        key = k;
+        if (grouped){
+          const h = document.createElement('div'); h.className = 'grp';
+          const t = document.createElement('span');
+          t.textContent = (it.shelf || '棚なし') + (it.tier ? '・' + it.tier + '段目' : '');
+          const c = document.createElement('span');
+          c.textContent = list.filter(x => ((x.shelf || '') + '\u0000' + (x.tier || '')) === k).length + '件';
+          h.append(t, c); w.appendChild(h);
+        }
+        ul = document.createElement('ul'); ul.className = 'list'; w.appendChild(ul);
+      }
       const li = document.createElement('li');
       const nm = document.createElement('div');
       nm.className = 'nm' + (it.name ? '' : ' none');
-      nm.textContent = it.name || (it.ocrPending ? '文字を読み取り中…' : '(商品名なし)');
+      if (grouped && it.pos){ const ps = document.createElement('span'); ps.className = 'pos'; ps.textContent = it.pos + '.'; nm.appendChild(ps); }
+      nm.appendChild(document.createTextNode(it.name || (it.ocrPending ? '文字を読み取り中…' : '(商品名なし)')));
       const mt = document.createElement('div'); mt.className = 'mt';
       mt.textContent = [it.jan, it.spec, priceText(it)].filter(Boolean).join('  /  ');
       const ed = document.createElement('span'); ed.className = 'ed'; ed.textContent = '編集';
@@ -287,7 +408,6 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
       li.onclick = () => openEdit(it.id);
       ul.appendChild(li);
     });
-    w.appendChild(ul);
   }
   function showLast(it, note){
     if (!it){ $('last').classList.remove('show'); return; }
@@ -295,14 +415,18 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     $('lJan').textContent = it.jan || '';
     $('lName').textContent = it.name || (it.ocrPending ? '文字を読み取り中…' : '(商品名なし)');
     if (note){ const n = document.createElement('span'); n.className = 'note ' + note[0]; n.textContent = note[1]; $('lName').appendChild(n); }
-    $('lMeta').textContent = [it.spec, priceText(it)].filter(Boolean).join('  /  ');
+    const loc = (it.shelf || it.tier) ? [(it.shelf || ''), it.tier ? it.tier + '段' : '', it.pos ? it.pos + '番目' : ''].filter(Boolean).join(' ') : '';
+    $('lMeta').textContent = [loc, it.spec, priceText(it)].filter(Boolean).join('  /  ');
     $('last').classList.add('show');
   }
   let lastId = null;
   $('lEdit').onclick = () => { if (lastId) openEdit(lastId); };
 
   function addItem(rec){
-    const it = Object.assign({ id: newId(), createdAt: Date.now(), jan: '', name: '', spec: '', price: '', priceTax: '' }, rec);
+    const loc = curLoc();
+    const base = { id: newId(), createdAt: Date.now(), jan: '', name: '', spec: '', price: '', priceTax: '' };
+    if (loc && rec.tier === undefined){ base.shelf = loc.shelf; base.tier = loc.tier; base.pos = nextPosOf(loc.shelf, loc.tier); }
+    const it = Object.assign(base, rec);
     items.push(it); persistItems(); render(); return it;
   }
   function updateItem(id, rec){
@@ -330,6 +454,16 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     $('editTitle').textContent = id ? '商品の編集' : '内容を確認して追加';
     $('eJan').value = it.jan || ''; $('eName').value = it.name || ''; $('eSpec').value = it.spec || '';
     $('ePrice').value = it.price || ''; $('eTax').value = it.priceTax || '';
+    const showLoc = settings.shelfOn || !!(it.shelf || it.tier);
+    $('eLoc').hidden = !showLoc;
+    if (showLoc){
+      const loc = curLoc() || { shelf: '', tier: '' };
+      const sh = id ? (it.shelf || '') : loc.shelf, ti = id ? (it.tier || '') : loc.tier;
+      $('eShelf').value = sh; $('eTier').value = ti;
+      $('ePos').value = id ? (it.pos || '') : (settings.shelfOn ? nextPosOf(sh, ti) : '');
+      const dl = $('shelfList'); dl.textContent = '';
+      shelfNames().forEach(n => { const o = document.createElement('option'); o.value = n; dl.appendChild(o); });
+    }
     $('eDel').hidden = !id; $('eSave').textContent = id ? '保存' : '追加';
     refreshChk();
     setPaused(true, 'edit');
@@ -343,6 +477,11 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     const jan = normalize($('eJan').value);
     if (jan && !isLen(jan)){ status('JANは8桁または13桁で入力してください', true); $('eJan').focus(); return; }
     const rec = { jan, name: $('eName').value.trim(), spec: $('eSpec').value.trim(), price: digits($('ePrice').value), priceTax: digits($('eTax').value) };
+    if (!$('eLoc').hidden){
+      rec.shelf = $('eShelf').value.trim();
+      rec.tier = parseInt(digits($('eTier').value), 10) || '';
+      rec.pos = parseInt(digits($('ePos').value), 10) || '';
+    }
     if (!rec.jan && !rec.name){ status('JANか商品名を入力してください', true); return; }
     if (editId){ updateItem(editId, Object.assign(rec, { ocrPending: false })); status('保存しました'); }
     else { const it = addItem(rec); showLast(it); status('追加しました'); }
@@ -603,7 +742,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     // 日本語側で読めた数字(「税込 429円」など)も候補に加える
     lines.forEach(l => {
       if (l.conf < 50 || /\d{4}[-\/.]\d/.test(l.text)) return;
-      (l.text.match(/\d{2,5}/g) || []).forEach(t => { if (!nums.some(x => x.s === t)) nums.push({ s: t, h: l.h, c: l.conf, jp: true }); });
+      (l.text.match(/(?<!\d)\d{2,5}(?!\d)/g) || []).forEach(t => { if (!nums.some(x => x.s === t)) nums.push({ s: t, h: l.h, c: l.conf, jp: true }); });
     });
     nums.forEach(w => { w.n = parseInt(w.s, 10); });
     const taxOf = (p, t) => [1.08, 1.1].some(r => Math.floor(p * r + 1e-9) === t);
@@ -659,9 +798,10 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
 
   // ---------- 読み取り確定 ----------
   function onCode(code){
-    const exists = items.find(x => x.jan === code);
+    const loc = curLoc();
+    const exists = items.find(x => x.jan === code && (!loc || sameLoc(x, loc.shelf, loc.tier)));
     if (exists && settings.noDup){
-      beep(false); showLast(exists, ['dup', '登録済み']); status('このJANは登録済みです');
+      beep(false); showLast(exists, ['dup', '登録済み']); status(loc ? 'この段ではすでに登録済みです' : 'このJANは登録済みです');
       return;
     }
     beep(true);
@@ -847,7 +987,8 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     if (!entries.length){ status('バーコードが見つかりませんでした。近づいて撮り直してください。', true); return; }
     let added = 0, skipped = 0;
     entries.forEach(en => {
-      if (en.jan && settings.noDup && items.some(x => x.jan === en.jan)){ skipped++; return; }
+      const lc = curLoc();
+      if (en.jan && settings.noDup && items.some(x => x.jan === en.jan && (!lc || sameLoc(x, lc.shelf, lc.tier)))){ skipped++; return; }
       showLast(addItem(en)); added++;
     });
     status(added + ' 件追加しました' + (skipped ? '(登録済み ' + skipped + ' 件は除外)' : '') + '。内容は一覧からタップして確認できます。');
@@ -856,8 +997,11 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
   // ---------- CSV ----------
   function csv(){
     const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-    const lines = [['JANコード', '商品名', '規格', '本体価格', '税込価格'].map(q).join(',')];
-    items.forEach(it => lines.push([it.jan ? '="' + it.jan + '"' : '', q(it.name), q(it.spec), it.price || '', it.priceTax || ''].join(',')));
+    const withLoc = items.some(x => x.shelf || x.tier);
+    const head = (withLoc ? ['棚', '段', '順番'] : []).concat(['JANコード', '商品名', '規格', '本体価格', '税込価格']);
+    const lines = [head.map(q).join(',')];
+    (withLoc ? sortedItems() : items).forEach(it => lines.push((withLoc ? [q(it.shelf), it.tier || '', it.pos || ''] : [])
+      .concat([it.jan ? '="' + it.jan + '"' : '', q(it.name), q(it.spec), it.price || '', it.priceTax || '']).join(',')));
     return '\uFEFF' + lines.join('\r\n') + '\r\n';
   }
   const stamp = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_' + p(d.getHours()) + p(d.getMinutes()); };
@@ -888,11 +1032,11 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
   function fillSettings(){
     $('sBeep').checked = settings.beep; $('sVib').checked = settings.vibrate;
     $('sVib').disabled = !canVibrate;
-    $('sVibNote').textContent = canVibrate ? '読み取ったときに振動で知らせます' : 'この端末・ブラウザは振動に対応していません(iPhoneなど)'; $('sNoDup').checked = settings.noDup; $('sOcr').checked = settings.ocr; $('sMsg').textContent = '';
+    $('sVibNote').textContent = canVibrate ? '読み取ったときに振動で知らせます' : 'この端末・ブラウザは振動に対応していません(iPhoneなど)'; $('sNoDup').checked = settings.noDup; $('sShelf').checked = settings.shelfOn; $('sOcr').checked = settings.ocr; $('sMsg').textContent = '';
   }
   $('setBtn').onclick = () => { fillSettings(); setPaused(true, 'settings'); $('setDlg').showModal(); };
   $('setDlg').addEventListener('close', () => {
-    settings.beep = $('sBeep').checked; if (canVibrate) settings.vibrate = $('sVib').checked; settings.noDup = $('sNoDup').checked; settings.ocr = $('sOcr').checked;
+    settings.beep = $('sBeep').checked; if (canVibrate) settings.vibrate = $('sVib').checked; settings.noDup = $('sNoDup').checked; settings.shelfOn = $('sShelf').checked; renderLoc(); settings.ocr = $('sOcr').checked;
     if (settings.ocr && running) ocrInit();
     persistSettings(); setPaused(false, 'settings');
   });
