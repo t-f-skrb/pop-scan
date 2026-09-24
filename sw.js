@@ -1,6 +1,6 @@
 // アプリ本体をキャッシュして、電波の弱い売場でも起動できるようにする
-const CACHE = 'pop-scan-v8';
-const FILES = ['./', './index.html', './zxing.min.js', './encoding.min.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png',
+const CACHE = 'pop-scan-v10';
+const FILES = ['./', './index.html', './zxing.min.js', './encoding.min.js', './xlsx.mini.min.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png',
   './ocr/tesseract.min.js', './ocr/worker.min.js', './ocr/core/tesseract-core-simd-lstm.wasm.js', './ocr/core/tesseract-core-lstm.wasm.js', './ocr/lang/jpn.traineddata.gz', './ocr/lang/eng.traineddata.gz'];
 
 self.addEventListener('install', e => {

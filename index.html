@@ -214,7 +214,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
 </main>
 
 <nav class="bottom">
-  <button class="primary" id="exportBtn">書き出す(CSV・PTS)</button>
+  <button class="primary" id="exportBtn">書き出す</button>
   <button class="secondary" id="copyBtn">コピー</button>
 </nav>
 
@@ -255,10 +255,13 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
 <dialog id="exportDlg">
   <form method="dialog" class="dlg" id="exportForm">
     <h3>書き出す</h3>
-    <div class="radio" role="radiogroup" aria-label="ファイルの形式">
-      <label><input type="radio" name="xfmt" id="xFmtCsv" checked> 一覧CSV</label>
-      <label><input type="radio" name="xfmt" id="xFmtPts"> 棚POWER用 PTS</label>
-    </div>
+    <label class="f" for="xFmt">出力形式</label>
+    <select id="xFmt">
+      <option value="csv">一覧CSV(JAN・商品名・規格・売価)</option>
+      <option value="xlsx">Excel(.xlsx)</option>
+      <option value="pdf">PDF(印刷・共有用の一覧表)</option>
+      <option value="pts">棚POWER用 PTS(共通棚割情報 Ver1.0)</option>
+    </select>
     <div id="xPtsBox" hidden>
       <p class="hint">共通棚割情報(PTS)Ver1.0 形式で出力します。棚POWERでは「外部棚割モデルを開く」で「棚割配置情報(PTS)」を選んで読み込みます。</p>
       <label class="f" for="xModel">棚割モデル名</label>
@@ -324,6 +327,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
 
 <script src="zxing.min.js"></script>
 <script src="encoding.min.js"></script>
+<script src="xlsx.mini.min.js"></script>
 <script src="ocr/tesseract.min.js"></script>
 <script>
 (function(){
@@ -1070,6 +1074,153 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     return true;
   }
 
+  // ---------- 表形式の出力データ(Excel・PDF 共通)----------
+  function tableData(){
+    const withLoc = items.some(x => x.shelf || x.tier);
+    const list = withLoc ? sortedItems() : items.slice();
+    const head = (withLoc ? ['棚', '段', '順番', 'フェース数'] : []).concat(['JANコード', '商品名', '規格', '本体価格', '税込価格']);
+    const rows = list.map(it => (withLoc ? [it.shelf || '', +it.tier || '', +it.pos || '', +it.face || 1] : [])
+      .concat([it.jan || '', it.name || '', it.spec || '', it.price ? +it.price : '', it.priceTax ? +it.priceTax : '']));
+    return { withLoc, list, head, rows };
+  }
+
+  // ---------- Excel(.xlsx)----------
+  function buildXlsx(){
+    const { withLoc, head, rows } = tableData();
+    const ws = XLSX.utils.aoa_to_sheet([head].concat(rows));
+    // JANは文字列として保存する(指数表示や先頭0の欠落を防ぐ)
+    const janCol = withLoc ? 4 : 0;
+    for (let r = 1; r <= rows.length; r++){
+      const ref = XLSX.utils.encode_cell({ r, c: janCol });
+      if (ws[ref]){ ws[ref].t = 's'; ws[ref].v = String(ws[ref].v); ws[ref].z = '@'; }
+    }
+    ws['!cols'] = (withLoc ? [{ wch: 14 }, { wch: 5 }, { wch: 6 }, { wch: 9 }] : [])
+      .concat([{ wch: 16 }, { wch: 36 }, { wch: 10 }, { wch: 10 }, { wch: 10 }]);
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length, c: head.length - 1 } }) };
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'POPリスト');
+    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    return new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  }
+
+  // ---------- PDF ----------
+  // 日本語フォントを埋め込まずに済むよう、A4のページを画像として描いてPDFにまとめる
+  const PDF_FONT = '"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Noto Sans CJK JP","Yu Gothic",Meiryo,sans-serif';
+  function fitText(g, text, w){
+    text = String(text == null ? '' : text);
+    if (g.measureText(text).width <= w) return text;
+    let lo = 0, hi = text.length;
+    while (lo < hi){ const m = (lo + hi + 1) >> 1; if (g.measureText(text.slice(0, m) + '…').width <= w) lo = m; else hi = m - 1; }
+    return text.slice(0, lo) + '…';
+  }
+  async function renderPdfPages(){
+    const { withLoc, list } = tableData();
+    const W = 1240, H = 1754, M = 70, RH = 46, HEAD_H = 50;
+    const cols = (withLoc ? [{ k: 'pos', t: '順番', w: 70, a: 'right' }] : [])
+      .concat([{ k: 'jan', t: 'JANコード', w: 230 }, { k: 'name', t: '商品名', w: 0 }, { k: 'spec', t: '規格', w: 120 },
+               { k: 'price', t: '本体', w: 100, a: 'right' }, { k: 'priceTax', t: '税込', w: 100, a: 'right' }])
+      .concat(withLoc ? [{ k: 'face', t: 'フェース', w: 100, a: 'right' }] : []);
+    const fixed = cols.reduce((a, c) => a + c.w, 0);
+    cols.find(c => c.k === 'name').w = W - M * 2 - fixed;
+    // 行データ(棚・段の見出し行を挟む)
+    const lines = []; let key = null;
+    list.forEach(it => {
+      const k = (it.shelf || '') + '\u0000' + (it.tier || '');
+      if (withLoc && k !== key){
+        key = k;
+        const n = list.filter(x => ((x.shelf || '') + '\u0000' + (x.tier || '')) === k).length;
+        lines.push({ group: (it.shelf || '棚なし') + (it.tier ? '・' + it.tier + '段目' : '') + '(' + n + '件)' });
+      }
+      lines.push({ it });
+    });
+    const perPage = Math.floor((H - M * 2 - 120 - HEAD_H - 40) / RH);
+    const pages = [];
+    for (let i = 0; i < lines.length; i += perPage) pages.push(lines.slice(i, i + perPage));
+    if (!pages.length) pages.push([]);
+    const d = new Date(), p2 = n => String(n).padStart(2, '0');
+    const dateText = d.getFullYear() + '/' + p2(d.getMonth() + 1) + '/' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes());
+    const out = [];
+    for (let pi = 0; pi < pages.length; pi++){
+      const c = document.createElement('canvas'); c.width = W; c.height = H;
+      const g = c.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+      g.fillStyle = '#1B1F3B'; g.textBaseline = 'middle';
+      g.font = '700 40px ' + PDF_FONT; g.fillText('POPリスト', M, M + 24);
+      g.font = '400 22px ' + PDF_FONT; g.fillStyle = '#5B6078';
+      g.textAlign = 'right'; g.fillText(dateText + '  全' + list.length + '件', W - M, M + 28); g.textAlign = 'left';
+      g.fillStyle = '#F5C400'; g.fillRect(M, M + 64, W - M * 2, 6);
+      let y = M + 110;
+      // 表の見出し
+      g.fillStyle = '#1B1F3B'; g.fillRect(M, y, W - M * 2, HEAD_H);
+      g.fillStyle = '#fff'; g.font = '700 22px ' + PDF_FONT;
+      let x = M;
+      cols.forEach(col => {
+        g.textAlign = col.a === 'right' ? 'right' : 'left';
+        g.fillText(col.t, col.a === 'right' ? x + col.w - 12 : x + 12, y + HEAD_H / 2);
+        x += col.w;
+      });
+      g.textAlign = 'left'; y += HEAD_H;
+      pages[pi].forEach((ln, ri) => {
+        if (ln.group){
+          g.fillStyle = '#FFF4C2'; g.fillRect(M, y, W - M * 2, RH);
+          g.fillStyle = '#1B1F3B'; g.font = '700 22px ' + PDF_FONT;
+          g.fillText(fitText(g, ln.group, W - M * 2 - 24), M + 12, y + RH / 2);
+        } else {
+          const it = ln.it;
+          if (ri % 2) { g.fillStyle = '#F6F7FA'; g.fillRect(M, y, W - M * 2, RH); }
+          g.fillStyle = '#1B1F3B'; g.font = '400 22px ' + PDF_FONT;
+          let cx = M;
+          cols.forEach(col => {
+            let v = it[col.k];
+            if (col.k === 'face') v = it.face || 1;
+            if ((col.k === 'price' || col.k === 'priceTax') && v) v = Number(v).toLocaleString('ja-JP');
+            if (col.k === 'name' && !v) v = '(商品名なし)';
+            const tw = col.w - 24;
+            g.textAlign = col.a === 'right' ? 'right' : 'left';
+            g.fillText(fitText(g, v == null ? '' : v, tw), col.a === 'right' ? cx + col.w - 12 : cx + 12, y + RH / 2);
+            cx += col.w;
+          });
+          g.textAlign = 'left';
+        }
+        g.fillStyle = '#D5D8E2'; g.fillRect(M, y + RH - 1, W - M * 2, 1);
+        y += RH;
+      });
+      g.fillStyle = '#5B6078'; g.font = '400 20px ' + PDF_FONT; g.textAlign = 'center';
+      g.fillText((pi + 1) + ' / ' + pages.length, W / 2, H - M + 10); g.textAlign = 'left';
+      const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+      out.push({ bytes: new Uint8Array(await blob.arrayBuffer()), w: W, h: H });
+    }
+    return out;
+  }
+  function makePdf(pages){
+    // JPEG画像を1ページずつ貼った最小構成のPDFを組み立てる
+    const enc = new TextEncoder(), chunks = [], offsets = [];
+    let size = 0;
+    const push = b => { if (typeof b === 'string') b = enc.encode(b); chunks.push(b); size += b.length; };
+    const obj = (n, body) => { offsets[n] = size; push(n + ' 0 obj\n'); body(); push('\nendobj\n'); };
+    const PW = 595.28, PH = 841.89;
+    const n = pages.length, kids = [];
+    for (let i = 0; i < n; i++) kids.push((3 + i * 3) + ' 0 R');
+    push('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'.replace(/[\u0080-\u00ff]/g, 'X'));
+    obj(1, () => push('<< /Type /Catalog /Pages 2 0 R >>'));
+    obj(2, () => push('<< /Type /Pages /Kids [' + kids.join(' ') + '] /Count ' + n + ' >>'));
+    pages.forEach((pg, i) => {
+      const pn = 3 + i * 3, cn = pn + 1, im = pn + 2;
+      obj(pn, () => push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + PW + ' ' + PH + '] /Resources << /XObject << /Im' + i + ' ' + im + ' 0 R >> >> /Contents ' + cn + ' 0 R >>'));
+      const content = 'q ' + PW + ' 0 0 ' + PH + ' 0 0 cm /Im' + i + ' Do Q';
+      obj(cn, () => { push('<< /Length ' + content.length + ' >>\nstream\n'); push(content); push('\nendstream'); });
+      obj(im, () => {
+        push('<< /Type /XObject /Subtype /Image /Width ' + pg.w + ' /Height ' + pg.h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + pg.bytes.length + ' >>\nstream\n');
+        push(pg.bytes); push('\nendstream');
+      });
+    });
+    const total = 3 + n * 3, xref = size;
+    let x = 'xref\n0 ' + total + '\n0000000000 65535 f \n';
+    for (let i = 1; i < total; i++) x += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
+    push(x + 'trailer\n<< /Size ' + total + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n');
+    return new Blob(chunks, { type: 'application/pdf' });
+  }
+
   // ---------- 棚POWER用 PTS(共通棚割情報 Ver1.0)----------
   // 仕様:1行目「共通棚割情報,Ｖ1．0,出力区分」、2行目 コメント(モデル名)、3行目 項目名、4行目以降 配置情報
   // 配置情報:棚台番号(左から)、棚段番号(下から)、棚位置(段ごとに左から)、商品コード、フェース数、フェース面、フェース回転、積上数、陳列種別
@@ -1124,10 +1275,10 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     return { text: lines.join('\r\n') + '\r\n', count: recs.length, skipped, dai: ptsOrder.filter(x => x.on).length };
   }
   function updatePtsNote(){
-    if ($('xFmtPts').checked){
+    if ($('xFmt').value === 'pts'){
       const r = buildPts();
       $('xNote').textContent = r.dai + '台・' + r.count + '件を出力します' + (r.skipped ? '(JANのない ' + r.skipped + ' 件は除外)' : '') + '。';
-    } else $('xNote').textContent = items.length + '件を出力します。';
+    } else $('xNote').textContent = items.length + '件を出力します。' + ($('xFmt').value === 'pdf' ? '(A4縦・棚と段ごとに見出し付き)' : '');
   }
   function openExport(){
     if (!items.length){ status('リストが空です', true); return; }
@@ -1136,30 +1287,46 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     ptsOrder = prev.concat(names.filter(n => !prev.includes(n))).map(n => ({ name: n, on: true }));
     $('xModel').value = settings.ptsModel || (names[0] ? names[0] + (names.length > 1 ? '〜' + names[names.length - 1] : '') : '棚割モデル');
     $('xTierTop').checked = settings.tierFrom === 'top'; $('xTierBottom').checked = settings.tierFrom !== 'top';
-    $('xFmtPts').checked = settings.exportFmt === 'pts'; $('xFmtCsv').checked = settings.exportFmt !== 'pts';
-    $('xPtsBox').hidden = !$('xFmtPts').checked;
+    $('xFmt').value = ['csv', 'xlsx', 'pdf', 'pts'].includes(settings.exportFmt) ? settings.exportFmt : 'csv';
+    $('xPtsBox').hidden = $('xFmt').value !== 'pts';
     renderPtsOrder(); updatePtsNote();
     setPaused(true, 'export');
     $('exportDlg').showModal();
   }
   $('exportBtn').onclick = openExport;
-  ['xFmtCsv', 'xFmtPts'].forEach(id => $(id).onchange = () => { $('xPtsBox').hidden = !$('xFmtPts').checked; updatePtsNote(); });
+  $('xFmt').onchange = () => { $('xPtsBox').hidden = $('xFmt').value !== 'pts'; updatePtsNote(); };
   $('xOrder').addEventListener('change', updatePtsNote);
   $('xOrder').addEventListener('click', () => setTimeout(updatePtsNote, 0));
   $('xCancel').onclick = () => $('exportDlg').close();
   $('exportDlg').addEventListener('close', () => setPaused(false, 'export'));
   $('exportForm').addEventListener('submit', async e => {
     e.preventDefault();
-    const pts = $('xFmtPts').checked;
-    settings.exportFmt = pts ? 'pts' : 'csv';
+    const pts = $('xFmt').value === 'pts';
+    const fmt = $('xFmt').value;
+    settings.exportFmt = fmt;
     if (pts){
       settings.tierFrom = $('xTierTop').checked ? 'top' : 'bottom';
       settings.ptsModel = $('xModel').value.trim();
     }
     persistSettings(); renderLoc();
-    if (!pts){
+    if (fmt === 'csv'){
       $('exportDlg').close();
       await saveFile('POPリスト_' + stamp() + '.csv', new Blob([csv()], { type: 'text/csv' }), 'CSV');
+      return;
+    }
+    if (fmt === 'xlsx'){
+      let blob;
+      try { blob = buildXlsx(); } catch(err){ $('xNote').textContent = 'Excelファイルを作れませんでした。'; return; }
+      $('exportDlg').close();
+      await saveFile('POPリスト_' + stamp() + '.xlsx', blob, 'Excelファイル');
+      return;
+    }
+    if (fmt === 'pdf'){
+      $('xNote').textContent = 'PDFを作成しています…';
+      let blob;
+      try { blob = makePdf(await renderPdfPages()); } catch(err){ $('xNote').textContent = 'PDFを作れませんでした。'; return; }
+      $('exportDlg').close();
+      await saveFile('POPリスト_' + stamp() + '.pdf', blob, 'PDF');
       return;
     }
     const r = buildPts();
