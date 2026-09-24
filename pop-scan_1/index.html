@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B1F3B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="POPスキャン">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>POPスキャン</title>
+<style>
+:root{
+  --bg:#EEF0F5; --paper:#FFFFFF; --ink:#1B1F3B; --sub:#5B6078; --rule:#D5D8E2; --field:#F6F7FA;
+  --tag:#F5C400; --tag-ink:#1B1F3B; --ok:#1F7A4D; --warn:#B3261E; --night:#13162A;
+  box-sizing:border-box;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#13162A; --paper:#1E2238; --ink:#EDEFF7; --sub:#A3A8C3; --rule:#343956; --field:#262B45; --ok:#5FD39A; --warn:#FF8A80; }
+}
+*,*::before,*::after{box-sizing:inherit}
+[hidden]{display:none !important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,system-ui,sans-serif;
+  font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+button{font:inherit;font-weight:700;border:0;border-radius:10px;cursor:pointer;min-height:44px;padding:10px 14px;color:inherit;background:none}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #4C7BF4;outline-offset:2px}
+.primary{background:var(--tag);color:var(--tag-ink)}
+.secondary{background:var(--paper);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--rule)}
+.ghost{color:var(--sub);font-weight:500;min-height:40px;padding:8px 10px}
+.danger{color:var(--warn)}
+
+/* top bar */
+.top{position:sticky;top:0;z-index:5;background:var(--ink);color:#fff;display:flex;align-items:center;gap:10px;
+  padding:calc(env(safe-area-inset-top,0px) + 8px) 12px 8px}
+@media (prefers-color-scheme: dark){ .top{background:#0E1122} }
+.top h1{font-size:1.05rem;margin:0;font-weight:800;flex:1}
+.top .count{font-size:.85rem;opacity:.8}
+.top .count b{font-size:1.1rem;opacity:1;font-variant-numeric:tabular-nums}
+.top button{color:#fff;min-height:38px;padding:6px 10px;font-weight:600;background:rgba(255,255,255,.1)}
+
+/* scanner */
+.scanner{position:relative;background:#000;height:min(46vh,420px);overflow:hidden}
+.scanner video{width:100%;height:100%;object-fit:cover;display:block}
+.scanner .veil{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:#fff;background:var(--night);padding:24px}
+.scanner .veil p{margin:12px 0 0;color:#C9CCDA;font-size:.9rem}
+.scanner .veil button{min-width:220px;min-height:56px;font-size:1.05rem}
+.frame{position:absolute;left:6%;right:6%;top:14%;bottom:18%;border:3px solid var(--tag);border-radius:10px;pointer-events:none;transition:border-color .15s}
+.frame.hit{border-color:#3DDC84}
+.frame::after{content:"";position:absolute;left:6px;right:6px;top:50%;height:2px;background:#E63946;opacity:.9}
+@media (prefers-reduced-motion:no-preference){
+  .frame::after{animation:sweep 1.4s ease-in-out infinite alternate}
+  @keyframes sweep{from{top:15%}to{top:85%}}
+}
+.scanner.paused .frame::after{animation:none;opacity:.3}
+.sc-tools{position:absolute;right:10px;bottom:10px;display:flex;gap:8px}
+.sc-tools button{background:rgba(0,0,0,.55);color:#fff;min-height:40px;padding:6px 12px;font-weight:600;backdrop-filter:blur(4px)}
+.sc-tools button[aria-pressed="true"]{background:var(--tag);color:var(--tag-ink)}
+.sc-msg{position:absolute;left:10px;top:10px;right:10px;color:#fff;font-size:.85rem;text-shadow:0 1px 3px #000}
+
+/* last scan card */
+.main{padding:12px 12px calc(env(safe-area-inset-bottom,0px) + 110px);max-width:640px;margin:0 auto}
+.last{background:var(--paper);border-radius:4px;border-top:8px solid var(--tag);padding:12px 14px;display:none;margin-bottom:12px}
+.last.show{display:block}
+.last .jan{font-size:1.5rem;font-weight:800;letter-spacing:.05em;font-variant-numeric:tabular-nums;line-height:1.2}
+.last .nm{font-weight:700;margin-top:4px;overflow-wrap:anywhere}
+.last .mt{font-size:.88rem;color:var(--sub)}
+.last .row{display:flex;align-items:flex-start;gap:8px}
+.last .row>div{flex:1;min-width:0}
+.note{font-size:.78rem;font-weight:700;border-radius:4px;padding:1px 7px;display:inline-block;margin-left:4px;vertical-align:2px}
+.note.dup{background:rgba(179,38,30,.12);color:var(--warn)}
+.note.mst{background:rgba(31,122,77,.14);color:var(--ok)}
+.note.ocr{background:rgba(245,196,0,.25);color:var(--ink)}
+
+.modes{display:grid;grid-template-columns:1fr 1fr;background:var(--paper);border-radius:10px;padding:4px;gap:4px;margin-bottom:10px}
+.modes button{min-height:40px;font-weight:600;color:var(--sub)}
+.modes button[aria-pressed="true"]{background:var(--ink);color:#fff}
+@media (prefers-color-scheme: dark){ .modes button[aria-pressed="true"]{background:var(--tag);color:var(--tag-ink)} }
+.tools{display:flex;gap:8px;margin-bottom:6px}
+.tools>*{flex:1}
+.file-btn{position:relative;display:flex;align-items:center;justify-content:center;border-radius:10px;min-height:44px;font-weight:700;background:var(--paper);box-shadow:inset 0 0 0 1.5px var(--rule);cursor:pointer;text-align:center;padding:8px}
+.file-btn input{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}
+.status{min-height:1.5em;font-size:.88rem;color:var(--sub);margin:6px 2px 4px}
+.status.err{color:var(--warn)}
+
+/* list */
+h2{font-size:1rem;margin:16px 2px 8px;display:flex;justify-content:space-between;align-items:baseline}
+h2 small{font-weight:500;color:var(--sub);font-size:.82rem}
+.list{list-style:none;margin:0;padding:0;background:var(--paper);border-radius:12px;overflow:hidden}
+.list li{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:11px 14px;border-top:1px solid var(--rule);cursor:pointer}
+.list li:first-child{border-top:0}
+.list .nm{font-weight:700;overflow-wrap:anywhere}
+.list .nm.none{color:var(--sub);font-weight:500}
+.list .mt{grid-column:1;font-size:.84rem;color:var(--sub);font-variant-numeric:tabular-nums}
+.list .ed{grid-row:1/span 2;grid-column:2;align-self:center;font-size:.85rem;color:var(--sub)}
+.empty{padding:22px 16px;text-align:center;color:var(--sub);background:var(--paper);border-radius:12px;font-size:.93rem}
+
+/* bottom bar */
+.bottom{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--paper);border-top:1px solid var(--rule);
+  padding:10px 12px calc(env(safe-area-inset-bottom,0px) + 10px);display:grid;grid-template-columns:2fr 1fr;gap:8px}
+.bottom .inner{display:contents}
+
+/* dialogs */
+dialog{border:0;border-radius:16px 16px 0 0;padding:0;margin:auto 0 0;width:100%;max-width:640px;margin-left:auto;margin-right:auto;
+  background:var(--paper);color:var(--ink);max-height:92vh}
+dialog::backdrop{background:rgba(10,12,28,.55)}
+.dlg{padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 16px);overflow:auto;max-height:92vh}
+.dlg h3{margin:0 0 6px;font-size:1.1rem}
+label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
+.dlg input[type=text],.dlg input[type=password],.dlg select{width:100%;font:inherit;color:var(--ink);background:var(--field);border:1.5px solid var(--rule);border-radius:8px;padding:10px 12px;min-height:46px}
+.jan-in{font-size:1.4rem !important;font-weight:800;letter-spacing:.05em;font-variant-numeric:tabular-nums}
+.chk{font-size:.84rem;font-weight:700;margin-top:4px}
+.chk.ok{color:var(--ok)} .chk.ng{color:var(--warn)}
+.r3{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:8px}
+.acts{display:flex;gap:8px;margin-top:16px}
+.acts .primary{flex:1}
+.sw{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--rule)}
+.sw:first-of-type{border-top:0}
+.sw span{font-size:.95rem}
+.sw small{display:block;color:var(--sub);font-size:.8rem}
+.sw input[type=checkbox]{width:24px;height:24px;flex:none}
+.hint{font-size:.82rem;color:var(--sub);margin:6px 0 0}
+.hint.warn{color:var(--warn)}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>POPスキャン</h1>
+  <span class="count"><b id="count">0</b> 件</span>
+  <button id="setBtn" aria-label="設定">設定</button>
+</header>
+
+<section class="scanner paused" id="scanner">
+  <video id="video" playsinline muted></video>
+  <div class="frame" id="frame"></div>
+  <div class="sc-msg" id="scMsg"></div>
+  <div class="sc-tools">
+    <button id="torchBtn" aria-pressed="false" hidden>ライト</button>
+    <button id="pauseBtn">一時停止</button>
+  </div>
+  <div class="veil" id="veil">
+    <div>
+      <button class="primary" id="startBtn">スキャンを開始</button>
+      <p>値札全体を黄色い枠に入れてかざすと、<br>JANと商品名・規格を読み取ります</p>
+    </div>
+  </div>
+</section>
+
+<main class="main">
+  <div class="last" id="last">
+    <div class="row">
+      <div>
+        <div class="jan" id="lJan"></div>
+        <div class="nm" id="lName"></div>
+        <div class="mt" id="lMeta"></div>
+      </div>
+      <button class="secondary" id="lEdit" style="min-height:40px">編集</button>
+    </div>
+  </div>
+
+  <div class="modes" role="group" aria-label="読み取り後の動作">
+    <button id="modeAuto" aria-pressed="true">かざして自動追加</button>
+    <button id="modeConfirm" aria-pressed="false">確認してから追加</button>
+  </div>
+  <div class="tools">
+    <label class="file-btn">写真から読み取る<input type="file" id="photoIn" accept="image/*"></label>
+    <button class="secondary" id="manualBtn">JANを手入力</button>
+  </div>
+  <div class="status" id="status" role="status" aria-live="polite"></div>
+
+  <h2>読み取り済み <small>タップで編集</small></h2>
+  <div id="listWrap"></div>
+</main>
+
+<nav class="bottom">
+  <button class="primary" id="exportBtn">CSVを書き出す</button>
+  <button class="secondary" id="copyBtn">コピー</button>
+</nav>
+
+<!-- 編集 -->
+<dialog id="editDlg">
+  <form method="dialog" class="dlg" id="editForm">
+    <h3 id="editTitle">商品の編集</h3>
+    <label class="f" for="eJan">JANコード</label>
+    <input class="jan-in" id="eJan" type="text" inputmode="numeric" maxlength="13" autocomplete="off">
+    <div class="chk" id="eChk"></div>
+    <label class="f" for="eName">商品名</label>
+    <input id="eName" type="text" autocomplete="off" placeholder="例:ソフトさきいか">
+    <div class="r3">
+      <div><label class="f" for="eSpec">規格</label><input id="eSpec" type="text" autocomplete="off" placeholder="58g"></div>
+      <div><label class="f" for="ePrice">本体価格</label><input id="ePrice" type="text" inputmode="numeric" autocomplete="off" placeholder="398"></div>
+      <div><label class="f" for="eTax">税込価格</label><input id="eTax" type="text" inputmode="numeric" autocomplete="off" placeholder="429"></div>
+    </div>
+    <div class="acts">
+      <button type="button" class="ghost danger" id="eDel">削除</button>
+      <button type="button" class="secondary" id="eCancel">キャンセル</button>
+      <button type="submit" class="primary" id="eSave">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 設定 -->
+<dialog id="setDlg">
+  <form method="dialog" class="dlg">
+    <h3>設定</h3>
+    <label class="sw"><span>読み取り音<small>読み取ったときに音と振動で知らせます</small></span><input type="checkbox" id="sBeep"></label>
+    <label class="sw"><span>値札の文字も読み取る<small>かざした値札から商品名・規格・売価を読み取ります(スマホの中で処理・無料)</small></span><input type="checkbox" id="sOcr"></label>
+    <label class="sw"><span>登録済みのJANは追加しない<small>同じ商品を二重に登録しないようにします</small></span><input type="checkbox" id="sNoDup"></label>
+    <div class="sw" style="display:block;border-top:1px solid var(--rule)">
+      <span>商品マスタ(任意)<small>JAN・商品名・規格・売価のCSVを読み込んでおくと、かざしたときに商品名などが自動で入ります</small></span>
+      <p class="hint" id="mInfo" style="margin:8px 0">読み込まれていません</p>
+      <div class="acts" style="margin-top:6px">
+        <label class="file-btn" style="flex:1">CSVを読み込む<input type="file" id="mFile" accept=".csv,text/csv,text/plain"></label>
+        <button type="button" class="secondary" id="mClear">削除</button>
+      </div>
+      <p class="hint">列の並びは「JANコード・商品名・規格・本体価格・税込価格」を想定しています。1行目に見出しがあれば、列名から自動で判別します。</p>
+    </div>
+    <p class="hint" id="sMsg"></p>
+    <div class="acts">
+      <button type="button" class="ghost danger" id="sClear">リストをすべて削除</button>
+      <button type="submit" class="primary" id="sDone">閉じる</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="zxing.min.js"></script>
+<script src="ocr/tesseract.min.js"></script>
+<script>
+(function(){
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const ITEMS_KEY = 'pop-scan-items-v1', SET_KEY = 'pop-scan-settings-v1';
+
+  // ---------- 保存 ----------
+  const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch(e){ return d; } };
+  const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){ status('端末に保存できませんでした。空き容量を確認してください。', true); } };
+  let items = load(ITEMS_KEY, []);
+  const settings = Object.assign({ beep: true, noDup: true, ocr: true, mode: 'auto' }, load(SET_KEY, {}));
+  delete settings.key; delete settings.ai; delete settings.model; save(SET_KEY, settings); // 旧版のAPIキーが残っていれば消す
+  const persistItems = () => save(ITEMS_KEY, items);
+  const persistSettings = () => save(SET_KEY, settings);
+
+  const status = (m, err) => { $('status').textContent = m || ''; $('status').classList.toggle('err', !!err); };
+  const digits = v => String(v == null ? '' : v).replace(/[^0-9]/g, '');
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+  // ---------- JAN ----------
+  function normalize(c){ c = digits(c); if (c.length === 12) c = '0' + c; return c; }
+  const isLen = c => /^\d{8}$|^\d{13}$/.test(c);
+  function validCheck(c){
+    if (!isLen(c)) return false;
+    const d = c.split('').map(Number), n = d.length; let s = 0;
+    for (let i = 0; i < n - 1; i++) s += d[i] * (((n - 1 - i) % 2 === 1) ? 3 : 1);
+    return (10 - s % 10) % 10 === d[n - 1];
+  }
+
+  // ---------- 一覧 ----------
+  function priceText(it){
+    if (it.price) return '本体' + it.price + '円' + (it.priceTax ? '(税込' + it.priceTax + '円)' : '');
+    return it.priceTax ? '税込' + it.priceTax + '円' : '';
+  }
+  function render(){
+    $('count').textContent = items.length;
+    const w = $('listWrap'); w.textContent = '';
+    if (!items.length){
+      const e = document.createElement('div'); e.className = 'empty';
+      e.textContent = 'まだありません。「スキャンを開始」を押して、値札のバーコードにかざしてください。';
+      w.appendChild(e); return;
+    }
+    const ul = document.createElement('ul'); ul.className = 'list';
+    items.slice().reverse().forEach(it => {
+      const li = document.createElement('li');
+      const nm = document.createElement('div');
+      nm.className = 'nm' + (it.name ? '' : ' none');
+      nm.textContent = it.name || (it.ocrPending ? '文字を読み取り中…' : '(商品名なし)');
+      const mt = document.createElement('div'); mt.className = 'mt';
+      mt.textContent = [it.jan, it.spec, priceText(it)].filter(Boolean).join('  /  ');
+      const ed = document.createElement('span'); ed.className = 'ed'; ed.textContent = '編集';
+      li.append(nm, ed, mt);
+      li.onclick = () => openEdit(it.id);
+      ul.appendChild(li);
+    });
+    w.appendChild(ul);
+  }
+  function showLast(it, note){
+    if (!it){ $('last').classList.remove('show'); return; }
+    lastId = it.id;
+    $('lJan').textContent = it.jan || '';
+    $('lName').textContent = it.name || (it.ocrPending ? '文字を読み取り中…' : '(商品名なし)');
+    if (note){ const n = document.createElement('span'); n.className = 'note ' + note[0]; n.textContent = note[1]; $('lName').appendChild(n); }
+    $('lMeta').textContent = [it.spec, priceText(it)].filter(Boolean).join('  /  ');
+    $('last').classList.add('show');
+  }
+  let lastId = null;
+  $('lEdit').onclick = () => { if (lastId) openEdit(lastId); };
+
+  function addItem(rec){
+    const it = Object.assign({ id: newId(), createdAt: Date.now(), jan: '', name: '', spec: '', price: '', priceTax: '' }, rec);
+    items.push(it); persistItems(); render(); return it;
+  }
+  function updateItem(id, rec){
+    const it = items.find(x => x.id === id); if (!it) return null;
+    Object.assign(it, rec); persistItems(); render();
+    if (id === lastId) showLast(it);
+    return it;
+  }
+  function removeItem(id){
+    items = items.filter(x => x.id !== id); persistItems(); render();
+    if (id === lastId) showLast(null);
+  }
+
+  // ---------- 編集ダイアログ ----------
+  let editId = null, editDraft = null;
+  function refreshChk(){
+    const j = normalize($('eJan').value), ok = validCheck(j);
+    $('eChk').textContent = !j ? '' : ok ? 'チェックディジット一致' : isLen(j) ? 'チェックディジット不一致:数字を確認してください' : '8桁または13桁で入力してください';
+    $('eChk').className = 'chk ' + (ok ? 'ok' : 'ng');
+  }
+  function openEdit(id, draft){
+    editId = id || null; editDraft = draft || null;
+    const it = id ? items.find(x => x.id === id) : (draft || {});
+    if (!it) return;
+    $('editTitle').textContent = id ? '商品の編集' : '内容を確認して追加';
+    $('eJan').value = it.jan || ''; $('eName').value = it.name || ''; $('eSpec').value = it.spec || '';
+    $('ePrice').value = it.price || ''; $('eTax').value = it.priceTax || '';
+    $('eDel').hidden = !id; $('eSave').textContent = id ? '保存' : '追加';
+    refreshChk();
+    setPaused(true, 'edit');
+    $('editDlg').showModal();
+  }
+  $('eJan').addEventListener('input', refreshChk);
+  $('eCancel').onclick = () => $('editDlg').close();
+  $('eDel').onclick = () => { if (editId && confirm('この商品を削除しますか?')){ removeItem(editId); status('削除しました'); $('editDlg').close(); } };
+  $('editForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const jan = normalize($('eJan').value);
+    if (jan && !isLen(jan)){ status('JANは8桁または13桁で入力してください', true); $('eJan').focus(); return; }
+    const rec = { jan, name: $('eName').value.trim(), spec: $('eSpec').value.trim(), price: digits($('ePrice').value), priceTax: digits($('eTax').value) };
+    if (!rec.jan && !rec.name){ status('JANか商品名を入力してください', true); return; }
+    if (editId){ updateItem(editId, Object.assign(rec, { ocrPending: false })); status('保存しました'); }
+    else { const it = addItem(rec); showLast(it); status('追加しました'); }
+    $('editDlg').close();
+  });
+  $('editDlg').addEventListener('close', () => { editId = null; editDraft = null; setPaused(false, 'edit'); });
+
+  $('manualBtn').onclick = () => openEdit(null, { jan: '' });
+
+  // ---------- モード ----------
+  function applyMode(){
+    $('modeAuto').setAttribute('aria-pressed', settings.mode === 'auto');
+    $('modeConfirm').setAttribute('aria-pressed', settings.mode === 'confirm');
+  }
+  $('modeAuto').onclick = () => { settings.mode = 'auto'; persistSettings(); applyMode(); };
+  $('modeConfirm').onclick = () => { settings.mode = 'confirm'; persistSettings(); applyMode(); };
+
+  // ---------- 音 ----------
+  let actx = null;
+  function beep(ok){
+    if (!settings.beep) return;
+    try {
+      if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.frequency.value = ok ? 1760 : 440; o.type = 'square';
+      g.gain.setValueAtTime(0.08, actx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + (ok ? 0.09 : 0.25));
+      o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + (ok ? 0.1 : 0.26));
+    } catch(e){}
+    if (navigator.vibrate) try { navigator.vibrate(ok ? 50 : [60, 60, 60]); } catch(e){}
+  }
+
+  // ---------- 商品マスタ ----------
+  // マスタは件数が多くなりやすいので IndexedDB に保存する
+  let master = new Map();
+  const idb = () => new Promise((res, rej) => {
+    const r = indexedDB.open('pop-scan', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+  async function idbSet(k, v){ const d = await idb(); return new Promise((res, rej) => { const t = d.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); }
+  async function idbGet(k){ const d = await idb(); return new Promise((res, rej) => { const q = d.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
+  function masterInfo(meta){
+    $('mInfo').textContent = master.size ? master.size.toLocaleString() + ' 件を読み込み済み' + (meta && meta.name ? '(' + meta.name + ')' : '') : '読み込まれていません';
+  }
+  async function loadMaster(){
+    try {
+      const v = await idbGet('master');
+      if (v && v.rows){ master = new Map(v.rows); masterInfo(v); }
+    } catch(e){}
+  }
+  const fromMaster = jan => {
+    const m = master.get(jan); if (!m) return null;
+    return { name: m[0] || '', spec: m[1] || '', price: m[2] || '', priceTax: m[3] || '' };
+  };
+  function parseCsv(text){
+    const rows = []; let row = [], f = '', q = false;
+    for (let i = 0; i < text.length; i++){
+      const c = text[i];
+      if (q){
+        if (c === '"'){ if (text[i + 1] === '"'){ f += '"'; i++; } else q = false; }
+        else f += c;
+      } else if (c === '"') q = true;
+      else if (c === ',' || c === '\t'){ row.push(f); f = ''; }
+      else if (c === '\n' || c === '\r'){
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(f); f = ''; if (row.some(x => x !== '')) rows.push(row); row = [];
+      } else f += c;
+    }
+    row.push(f); if (row.some(x => x !== '')) rows.push(row);
+    return rows;
+  }
+  function decodeText(buf){
+    const u = new TextDecoder('utf-8').decode(buf);
+    if (!u.includes('\uFFFD')) return u.replace(/^\uFEFF/, '');
+    try { return new TextDecoder('shift_jis').decode(buf); } catch(e){ return u; }
+  }
+  $('mFile').onchange = async e => {
+    const f = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    $('sMsg').textContent = '読み込んでいます…';
+    try {
+      const rows = parseCsv(decodeText(await f.arrayBuffer()));
+      if (!rows.length) throw new Error('empty');
+      const head = rows[0].map(x => String(x).trim());
+      const find = re => head.findIndex(h => re.test(h));
+      let col = { jan: find(/JAN|ＪＡＮ|バーコード|コード/i), name: find(/商品名|品名|名称/), spec: find(/規格|内容量|容量|入数/), price: find(/本体|売価|税抜|価格/), tax: find(/税込/) };
+      if (col.price === col.tax) col.price = find(/本体|売価|税抜/);
+      let body = rows.slice(1);
+      if (col.jan < 0){ col = { jan: 0, name: 1, spec: 2, price: 3, tax: 4 }; body = rows; }
+      const map = new Map(); let bad = 0, sci = 0;
+      for (const r of body){
+        const rawJan = String(r[col.jan] || '');
+        if (/E\+/i.test(rawJan)){ sci++; continue; }
+        const jan = normalize(rawJan);
+        if (!isLen(jan)){ bad++; continue; }
+        const g = i => i >= 0 ? String(r[i] || '').trim() : '';
+        map.set(jan, [g(col.name), g(col.spec), digits(g(col.price)), digits(g(col.tax))]);
+      }
+      if (!map.size){
+        $('sMsg').textContent = sci ? 'JANが「4.96E+12」のような指数表示になっているため読み込めませんでした。Excelで列の表示形式を「数値(小数点以下0桁)」か「文字列」にしてから保存し直してください。' : 'JANの列が見つかりませんでした。1列目にJANが入っているか確認してください。';
+        return;
+      }
+      master = map;
+      const meta = { name: f.name, rows: [...map.entries()] };
+      await idbSet('master', meta);
+      masterInfo(meta);
+      $('sMsg').textContent = map.size.toLocaleString() + ' 件を読み込みました' + (bad + sci ? '(読み込めなかった行 ' + (bad + sci) + ' 件)' : '') + '。';
+    } catch(err){
+      $('sMsg').textContent = 'CSVを読み込めませんでした。ファイルの形式を確認してください。';
+    }
+  };
+  $('mClear').onclick = async () => {
+    if (!master.size) return;
+    if (!confirm('読み込んだ商品マスタを削除しますか?(読み取り済みのリストは消えません)')) return;
+    master = new Map(); try { await idbSet('master', null); } catch(e){}
+    masterInfo(); $('sMsg').textContent = '商品マスタを削除しました。';
+  };
+
+  // ---------- 値札の文字認識(端末内で処理・APIキー不要) ----------
+  let ocrWorker = null, numWorker = null, ocrLoading = null, ocrBusy = false;
+  const ocrQueue = [];
+  function ocrInit(){
+    if (!settings.ocr || !window.Tesseract) return Promise.resolve(null);
+    if (ocrWorker) return Promise.resolve(ocrWorker);
+    if (ocrLoading) return ocrLoading;
+    $('scMsg').textContent = '文字認識を準備しています…(初回のみ少し時間がかかります)';
+    // 日本語(商品名用)と英数字(価格・規格の数字用)の2つを用意する。大きな数字は英数字用のほうが正確に読める
+    const opt = { workerPath: 'ocr/worker.min.js', corePath: 'ocr/core', langPath: 'ocr/lang', gzip: true, cacheMethod: 'write' };
+    ocrLoading = Promise.all([Tesseract.createWorker('jpn', 1, opt), Tesseract.createWorker('eng', 1, opt)]).then(async ([w, n]) => {
+      await w.setParameters({ tessedit_pageseg_mode: '11', preserve_interword_spaces: '1' });
+      await n.setParameters({ tessedit_pageseg_mode: '11', tessedit_char_whitelist: '0123456789gGkKmMlL.' });
+      ocrWorker = w; numWorker = n;
+      if ($('scMsg').textContent.startsWith('文字認識')) $('scMsg').textContent = '';
+      return w;
+    }).catch(() => {
+      ocrLoading = null;
+      if ($('scMsg').textContent.startsWith('文字認識')) $('scMsg').textContent = '';
+      status('文字認識を準備できませんでした。JANだけ読み取ります。', true);
+      return null;
+    });
+    return ocrLoading;
+  }
+
+  // 白黒化とコントラスト補正で、小さな文字を読みやすくする
+  function prepCanvas(src, sx, sy, sw, sh, targetW){
+    // 文字認識は文字の高さ20〜40px前後が最も正確なので、拡大しすぎず、周囲に白い余白を付ける
+    const scale = Math.min(2, targetW / sw), pad = 24;
+    const c = document.createElement('canvas');
+    c.width = Math.round(sw * scale) + pad * 2; c.height = Math.round(sh * scale) + pad * 2;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.imageSmoothingQuality = 'high';
+    g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+    g.drawImage(src, sx, sy, sw, sh, pad, pad, c.width - pad * 2, c.height - pad * 2);
+    const d = g.getImageData(0, 0, c.width, c.height), p = d.data, n = p.length / 4;
+    const L = new Uint8Array(n), hist = new Uint32Array(256);
+    for (let i = 0, j = 0; j < n; i += 4, j++){ const v = (p[i] * 299 + p[i + 1] * 587 + p[i + 2] * 114) / 1000 | 0; L[j] = v; hist[v]++; }
+    let acc = 0, lo = 0, hi = 255;
+    for (let v = 0; v < 256; v++){ acc += hist[v]; if (acc >= n * 0.02){ lo = v; break; } }
+    acc = 0;
+    for (let v = 255; v >= 0; v--){ acc += hist[v]; if (acc >= n * 0.02){ hi = v; break; } }
+    const k = 255 / Math.max(1, hi - lo);
+    for (let i = 0, j = 0; j < n; i += 4, j++){ let v = (L[j] - lo) * k; v = v < 0 ? 0 : v > 255 ? 255 : v; p[i] = p[i + 1] = p[i + 2] = v; }
+    g.putImageData(d, 0, 0);
+    return c;
+  }
+
+  // スキャン枠の中だけを切り出す(画面表示は object-fit: cover なので座標を換算する)
+  function frameCrop(bar){
+    const v = $('video'), vw = v.videoWidth, vh = v.videoHeight;
+    if (!vw || !vh) return null;
+    const box = $('scanner').getBoundingClientRect(), fr = $('frame').getBoundingClientRect();
+    const s = Math.max(box.width / vw, box.height / vh);
+    const ox = (box.width - vw * s) / 2, oy = (box.height - vh * s) / 2;
+    let sx = (fr.left - box.left - ox) / s, sy = (fr.top - box.top - oy) / s;
+    let sw = fr.width / s, sh = fr.height / s;
+    sx = Math.max(0, sx); sy = Math.max(0, sy); sw = Math.min(vw - sx, sw); sh = Math.min(vh - sy, sh);
+    if (sw < 20 || sh < 20) return null;
+    // 枠内を切り出し、バーコード部分は白で塗りつぶす(縦線が文字と誤認されるのを防ぐ)
+    const raw = document.createElement('canvas'); raw.width = Math.round(sw); raw.height = Math.round(sh);
+    const g = raw.getContext('2d');
+    g.drawImage(v, sx, sy, sw, sh, 0, 0, raw.width, raw.height);
+    if (bar){ g.fillStyle = '#fff'; g.fillRect(bar.x - sx - bar.w * 0.06, bar.y - sy, bar.w * 1.12, bar.h); }
+    return ocrPair(raw);
+  }
+  function ocrPair(src){
+    const W = src.naturalWidth || src.width, H = src.naturalHeight || src.height;
+    return { j: prepCanvas(src, 0, 0, W, H, 640), e: prepCanvas(src, 0, 0, W, H, 900) };
+  }
+  // 読み取ったバーコードの位置(映像の座標)
+  function barBox(det){ // 位置が正確に取れる BarcodeDetector のときだけ使う
+    try {
+      if (det && det.boundingBox){ const b = det.boundingBox; return { x: b.x, y: b.y, w: b.width, h: b.height }; }
+    } catch(e){}
+    return null;
+  }
+
+  const z2h = s => String(s || '').replace(/[０-９Ａ-Ｚａ-ｚ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/　/g, ' ');
+  const JP = /[\u3040-\u30ff\u3400-\u9fff\uff66-\uff9f]/;
+  function joinJp(t){ // 「ソ フ ト さ き」のような文字間の空白を詰める
+    return t.replace(/\s+/g, ' ').replace(/(\S) (?=\S)/g, (m, a, off, str) => {
+      const b = str[off + 2];
+      return (JP.test(a) || JP.test(b)) ? a : a + ' ';
+    }).trim();
+  }
+  const SPEC_RE = /(\d+(?:\.\d+)?)\s*(kg|KG|Kg|g|G|ml|mL|ML|l|L|cc|CC|個入り?|個|本入り?|本|枚入り?|枚|袋|粒|切れ?|尾|パック|P|入り?)(?![a-zA-Z])/;
+  function parseTag(data, numData){
+    const lines = (data.lines || []).map(l => ({
+      text: joinJp(z2h(l.text)), h: l.bbox.y1 - l.bbox.y0, top: l.bbox.y0, x0: l.bbox.x0, x1: l.bbox.x1, conf: l.confidence
+    })).filter(l => l.text && !/^[|\[\]I l!]+$/.test(l.text));
+    // 疎な読み取りで分かれた同じ行の断片(「ソフト」「さきいか」など)をつなげる
+    lines.sort((a, b) => a.top - b.top || a.x0 - b.x0);
+    for (let i = 0; i < lines.length; i++){
+      for (let k = i + 1; k < lines.length; k++){
+        const a = lines[i], b = lines[k]; if (!a || !b) continue;
+        const ov = Math.min(a.top + a.h, b.top + b.h) - Math.max(a.top, b.top);
+        const gap = b.x0 - a.x1;
+        if (ov > Math.min(a.h, b.h) * 0.5 && gap > -a.h && gap < Math.max(a.h, b.h) * 1.5 && Math.abs(a.h - b.h) < Math.max(a.h, b.h) * 0.4){
+          a.text = joinJp(a.text + ' ' + b.text); a.x1 = Math.max(a.x1, b.x1); a.h = Math.max(a.h, b.h); lines[k] = null;
+        }
+      }
+    }
+    for (let i = lines.length - 1; i >= 0; i--) if (!lines[i]) lines.splice(i, 1);
+    const H = Math.max(1, ...lines.map(l => l.top + l.h));
+    // 規格
+    let spec = '';
+    for (const l of lines){
+      if (/\d{4}[-\/.]\d{1,2}/.test(l.text)) continue; // 日付は除外
+      const m = l.text.match(SPEC_RE);
+      if (m && !/円/.test(l.text.slice(m.index, m.index + m[0].length + 1))){ spec = m[1] + m[2].replace(/り$/, ''); break; }
+    }
+    // 商品名:日本語が多く、価格や日付を含まない行のうち、上半分で文字の大きいもの
+    const cand = lines.filter(l => {
+      const t = l.text.replace(/\s/g, '');
+      if (l.conf < 50) return false; // 背景の模様などを誤認した行を除く
+      if (t.length < 3) return false;
+      if (/税込|本体|価格|円|税抜|\d{4}[-\/.]\d/.test(t)) return false;
+      const jp = [...t].filter(c => JP.test(c)).length, al = [...t].filter(c => /[A-Za-z]/.test(c)).length;
+      return (jp + al) / t.length >= 0.6 && jp >= 2;
+    });
+    const upper = cand.filter(l => l.top < H * 0.6);
+    const pool = upper.length ? upper : cand;
+    const score = l => l.h * Math.sqrt(Math.min(l.text.replace(/\s/g, '').length, 14));
+    pool.sort((a, b) => (score(b) - score(a)) || (a.top - b.top));
+    let name = pool.length ? pool[0].text : '';
+    if (spec) name = name.replace(spec, '').trim();
+    // 規格の予備:英数字用の結果から「43g」のような語を拾う
+    const nwords = ((numData && numData.words) || []).map(w => ({ raw: w.text, h: w.bbox.y1 - w.bbox.y0, c: w.confidence }));
+    if (!spec){
+      const g = nwords.find(w => w.c >= 60 && /^\d{1,4}(\.\d+)?(g|kg|ml|l)$/i.test(w.raw));
+      if (g) spec = g.raw.replace(/G$/, 'g');
+    }
+    // 価格:一番大きく印字された数字を本体価格とし、8%または10%で対応する税込価格を探す
+    const nums = nwords.map(w => ({ raw: w.raw.replace(/[MmL]$/, ''), h: w.h, c: w.c }))
+      .map(w => ({ s: w.raw.replace(/[^0-9]/g, ''), ok: /^\d+$/.test(w.raw), h: w.h, c: w.c }))
+      .filter(w => w.ok && w.s.length >= 2 && w.s.length <= 5);
+    // 日本語側で読めた数字(「税込 429円」など)も候補に加える
+    lines.forEach(l => {
+      if (l.conf < 50 || /\d{4}[-\/.]\d/.test(l.text)) return;
+      (l.text.match(/\d{2,5}/g) || []).forEach(t => { if (!nums.some(x => x.s === t)) nums.push({ s: t, h: l.h, c: l.conf, jp: true }); });
+    });
+    nums.forEach(w => { w.n = parseInt(w.s, 10); });
+    const taxOf = (p, t) => [1.08, 1.1].some(r => Math.floor(p * r + 1e-9) === t);
+    // 「税込 429円」の行があれば、その数字を税込価格の候補として最優先する
+    let taxHint = null;
+    const tl = lines.find(l => l.conf >= 50 && /税込/.test(l.text));
+    if (tl){ const m = tl.text.match(/税込\D{0,6}(\d{2,5})/); if (m) taxHint = parseInt(m[1], 10); }
+    let price = '', priceTax = '';
+    if (nums.length){
+      const big = nums.filter(w => w.n !== taxHint).sort((a, b) => b.h - a.h)[0] || nums[0];
+      const tax = nums.find(w => w !== big && taxOf(big.n, w.n));
+      if (tax){ price = String(big.n); priceTax = String(tax.n); }
+      else {
+        // 本体価格の読み違いを、税込価格から逆算して補う(例:598 を 098 と読んだ場合)
+        const taxCands = (taxHint ? [{ n: taxHint, c: 99 }] : []).concat(nums.filter(w => w !== big && w.c >= 60));
+        for (const t of taxCands){
+          for (const r of [1.08, 1.1]){
+            const pp = Math.ceil(t.n / r - 1e-9);
+            if (taxOf(pp, t.n) && String(pp).slice(-2) === big.s.slice(-2)){ price = String(pp); priceTax = String(t.n); break; }
+          }
+          if (price) break;
+        }
+        if (!price){ price = String(big.n); if (taxHint) priceTax = String(taxHint); }
+      }
+    } else if (taxHint) priceTax = String(taxHint);
+    return { name, spec, price, priceTax };
+  }
+
+  function queueOcr(canvas, onDone){
+    ocrQueue.push({ canvas, onDone });
+    pumpOcr();
+  }
+  async function pumpOcr(){
+    if (ocrBusy || !ocrQueue.length) return;
+    ocrBusy = true;
+    const job = ocrQueue.shift();
+    try {
+      const w = await ocrInit();
+      if (w){
+        const r = await w.recognize(job.canvas.j);
+        const rn = await numWorker.recognize(job.canvas.e);
+        job.onDone(parseTag(r.data, rn.data));
+      }
+      else job.onDone(null);
+    } catch(e){ job.onDone(null); }
+    ocrBusy = false; pumpOcr();
+  }
+  const fillEmpty = (base, found) => {
+    const out = {};
+    ['name', 'spec', 'price', 'priceTax'].forEach(k => { if (!base[k] && found && found[k]) out[k] = found[k]; });
+    return out;
+  };
+
+  // ---------- 読み取り確定 ----------
+  function onCode(code){
+    const exists = items.find(x => x.jan === code);
+    if (exists && settings.noDup){
+      beep(false); showLast(exists, ['dup', '登録済み']); status('このJANは登録済みです');
+      return;
+    }
+    beep(true);
+    $('frame').classList.add('hit'); setTimeout(() => $('frame').classList.remove('hit'), 350);
+    const info = fromMaster(code);
+    const crop = (!info && settings.ocr && window.Tesseract) ? frameCrop(lastBar) : null;
+    if (settings.mode === 'confirm'){
+      openEdit(null, Object.assign({ jan: code }, info || {}));
+      if (crop){
+        status('値札の文字を読み取っています…');
+        queueOcr(crop, res => {
+          if (!$('editDlg').open || editId || normalize($('eJan').value) !== code){ return; }
+          if (res){
+            if (!$('eName').value) $('eName').value = res.name;
+            if (!$('eSpec').value) $('eSpec').value = res.spec;
+            if (!$('ePrice').value) $('ePrice').value = res.price;
+            if (!$('eTax').value) $('eTax').value = res.priceTax;
+            status('読み取った内容を確認してください');
+          } else status('文字を読み取れませんでした。手入力してください。');
+        });
+      }
+      return;
+    }
+    const it = addItem(Object.assign({ jan: code, ocrPending: !!crop }, info || {}));
+    showLast(it, crop ? ['ocr', '文字を読み取り中'] : (master.size && !info ? ['dup', 'マスタに未登録'] : null));
+    status('追加しました');
+    if (crop){
+      queueOcr(crop, res => {
+        const cur = items.find(x => x.id === it.id); if (!cur) return;
+        updateItem(it.id, Object.assign(fillEmpty(cur, res), { ocrPending: false }));
+      });
+    }
+  }
+
+  // ---------- カメラ ----------
+  let detector = null;
+  const detectorReady = (async () => {
+    if (!('BarcodeDetector' in window)) return;
+    try {
+      const fm = await BarcodeDetector.getSupportedFormats();
+      const want = ['ean_13', 'ean_8', 'upc_a', 'upc_e'].filter(f => fm.includes(f));
+      if (want.includes('ean_13')) detector = new BarcodeDetector({ formats: want });
+    } catch(e){ detector = null; }
+  })();
+  // ライブ読み取り用と写真用で設定を分ける(TRY_HARDER を付けるとライブ読み取りが止まる端末があるため)
+  let zx = null, zxHard = null;
+  function zxReader(hard){
+    if (hard ? zxHard : zx) return hard ? zxHard : zx;
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.UPC_A]);
+    if (hard) hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    const r = new ZXing.BrowserMultiFormatReader(hints, 120);
+    if (hard) zxHard = r; else zx = r;
+    return r;
+  }
+
+  const video = $('video');
+  let running = false, loopId = 0, pauseReasons = new Set();
+  let lastRead = '', readCount = 0, cooldown = new Map();
+  const isPaused = () => pauseReasons.size > 0;
+  function setPaused(on, reason){
+    if (on) pauseReasons.add(reason); else pauseReasons.delete(reason);
+    $('scanner').classList.toggle('paused', isPaused() || !running);
+    $('pauseBtn').textContent = pauseReasons.has('user') ? '再開' : '一時停止';
+  }
+  let lastBar = null;
+  function handleRaw(raw, bar){
+    if (!running || isPaused()) return;
+    const code = normalize(raw);
+    if (!isLen(code) || !validCheck(code)) return;
+    if (code === lastRead) readCount++; else { lastRead = code; readCount = 1; }
+    if (readCount < 2) return;               // 2回連続で同じ値のときだけ確定(誤読防止)
+    readCount = 0;
+    const t = cooldown.get(code) || 0;
+    if (Date.now() - t < 2500) return;       // 同じ値札を連続で拾わない
+    cooldown.set(code, Date.now());
+    lastBar = bar || null;
+    onCode(code);
+  }
+
+  async function startScan(){
+    await detectorReady;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      status('このブラウザではカメラを使えません。SafariまたはChromeで開いてください。', true); return;
+    }
+    try { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch(e){}
+    $('scMsg').textContent = 'カメラを起動しています…';
+    try {
+      const constraints = { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, focusMode: 'continuous' }, audio: false };
+      if (detector){
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream; await video.play();
+        running = true;
+        const my = ++loopId;
+        const tick = async () => {
+          if (!running || my !== loopId) return;
+          if (!isPaused() && video.readyState >= 2){
+            try { const r = await detector.detect(video); r.forEach(x => handleRaw(x.rawValue, barBox(x))); } catch(e){}
+          }
+          setTimeout(tick, 90);
+        };
+        tick();
+      } else {
+        running = true;
+        await zxReader().decodeFromConstraints(constraints, video, res => { if (res) handleRaw(res.getText(), null); });
+      }
+      $('veil').hidden = true; $('scMsg').textContent = '';
+      setPaused(false, 'user');
+      setupTorch();
+      ocrInit();
+      status('値札のバーコードにかざしてください');
+    } catch(e){
+      running = false;
+      $('scMsg').textContent = '';
+      const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+      status(denied ? 'カメラの使用が許可されていません。ブラウザの設定でこのサイトのカメラを許可してください。' : 'カメラを起動できませんでした(' + (e && e.name || 'エラー') + ')。', true);
+    }
+  }
+  function stopScan(){
+    running = false; loopId++;
+    if (zx) try { zx.reset(); } catch(e){}
+    const s = video.srcObject; if (s) s.getTracks().forEach(t => t.stop());
+    video.srcObject = null; $('veil').hidden = false; $('torchBtn').hidden = true;
+    setPaused(false, 'user');
+  }
+  $('startBtn').onclick = startScan;
+  $('pauseBtn').onclick = () => { if (!running) return; setPaused(!pauseReasons.has('user'), 'user'); };
+  document.addEventListener('visibilitychange', () => { if (document.hidden && running) stopScan(); });
+
+  let torchOn = false;
+  function setupTorch(){
+    const s = video.srcObject; const track = s && s.getVideoTracks ? s.getVideoTracks()[0] : null;
+    let ok = false;
+    try { ok = !!(track && track.getCapabilities && track.getCapabilities().torch); } catch(e){}
+    $('torchBtn').hidden = !ok; torchOn = false; $('torchBtn').setAttribute('aria-pressed', 'false');
+    $('torchBtn').onclick = async () => {
+      try { torchOn = !torchOn; await track.applyConstraints({ advanced: [{ torch: torchOn }] }); $('torchBtn').setAttribute('aria-pressed', String(torchOn)); } catch(e){}
+    };
+  }
+
+  // ---------- 写真から(複数の値札) ----------
+  function loadImage(file){
+    return new Promise((res, rej) => {
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => res({ img, url }); img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('img')); };
+      img.src = url;
+    });
+  }
+  function imgCanvas(img, maxSide){
+    const W = img.naturalWidth, H = img.naturalHeight, s = Math.min(1, maxSide / Math.max(W, H));
+    const c = document.createElement('canvas'); c.width = Math.round(W * s); c.height = Math.round(H * s);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); return c;
+  }
+  $('photoIn').onchange = async e => {
+    const f = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    setPaused(true, 'photo');
+    status('写真を解析しています…');
+    let loaded;
+    try { loaded = await loadImage(f); } catch(err){ status('写真を開けませんでした', true); setPaused(false, 'photo'); return; }
+    await detectorReady;
+    const found = [];
+    if (detector){
+      for (const m of [4000, 2400, 1600]){
+        try { (await detector.detect(imgCanvas(loaded.img, m))).forEach(x => found.push(x.rawValue)); } catch(err){}
+        if (found.length) break;
+      }
+    }
+    if (!found.length){
+      for (const m of [1600, 2400, 1000]){
+        try { const r = await zxReader(true).decodeFromImageUrl(imgCanvas(loaded.img, m).toDataURL('image/png')); if (r){ found.push(r.getText()); break; } } catch(err){}
+      }
+    }
+    const decoded = [...new Set(found.map(normalize))].filter(c => isLen(c) && validCheck(c));
+    const entries = decoded.map(j => Object.assign({ jan: j }, fromMaster(j) || {}));
+    if (entries.length === 1 && !entries[0].name && settings.ocr && window.Tesseract){
+      status('値札の文字を読み取っています…');
+      const res = await new Promise(r => queueOcr(ocrPair(loaded.img), r));
+      Object.assign(entries[0], fillEmpty(entries[0], res));
+    }
+    URL.revokeObjectURL(loaded.url);
+    setPaused(false, 'photo');
+    if (!entries.length){ status('バーコードが見つかりませんでした。近づいて撮り直してください。', true); return; }
+    let added = 0, skipped = 0;
+    entries.forEach(en => {
+      if (en.jan && settings.noDup && items.some(x => x.jan === en.jan)){ skipped++; return; }
+      showLast(addItem(en)); added++;
+    });
+    status(added + ' 件追加しました' + (skipped ? '(登録済み ' + skipped + ' 件は除外)' : '') + '。内容は一覧からタップして確認できます。');
+  };
+
+  // ---------- CSV ----------
+  function csv(){
+    const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const lines = [['JANコード', '商品名', '規格', '本体価格', '税込価格'].map(q).join(',')];
+    items.forEach(it => lines.push([it.jan ? '="' + it.jan + '"' : '', q(it.name), q(it.spec), it.price || '', it.priceTax || ''].join(',')));
+    return '\uFEFF' + lines.join('\r\n') + '\r\n';
+  }
+  const stamp = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_' + p(d.getHours()) + p(d.getMinutes()); };
+  $('exportBtn').onclick = async () => {
+    if (!items.length){ status('リストが空です', true); return; }
+    const name = 'POPリスト_' + stamp() + '.csv';
+    const blob = new Blob([csv()], { type: 'text/csv' });
+    try {
+      const file = new File([blob], name, { type: 'text/csv' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })){
+        await navigator.share({ files: [file], title: name });
+        status('CSVを書き出しました'); return;
+      }
+    } catch(e){ if (e && e.name === 'AbortError'){ status('書き出しをキャンセルしました'); return; } }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    status('CSVを保存しました');
+  };
+  $('copyBtn').onclick = async () => {
+    if (!items.length){ status('リストが空です', true); return; }
+    const text = csv().replace(/^\uFEFF/, '');
+    try { await navigator.clipboard.writeText(text); status('CSVをコピーしました'); }
+    catch(e){ status('コピーできませんでした', true); }
+  };
+
+  // ---------- 設定 ----------
+  function fillSettings(){
+    $('sBeep').checked = settings.beep; $('sNoDup').checked = settings.noDup; $('sOcr').checked = settings.ocr; $('sMsg').textContent = '';
+  }
+  $('setBtn').onclick = () => { fillSettings(); setPaused(true, 'settings'); $('setDlg').showModal(); };
+  $('setDlg').addEventListener('close', () => {
+    settings.beep = $('sBeep').checked; settings.noDup = $('sNoDup').checked; settings.ocr = $('sOcr').checked;
+    if (settings.ocr && running) ocrInit();
+    persistSettings(); setPaused(false, 'settings');
+  });
+  $('sClear').onclick = () => {
+    if (!items.length){ $('sMsg').textContent = 'リストは空です'; return; }
+    if (!confirm('リストの ' + items.length + ' 件をすべて削除します。よろしいですか?')) return;
+    items = []; persistItems(); render(); showLast(null); status('リストを削除しました');
+  };
+
+  // ---------- 起動 ----------
+  applyMode(); render(); loadMaster();
+  if ('serviceWorker' in navigator && location.protocol === 'https:'){
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost'){
+    status('カメラを使うには https:// のアドレスで開く必要があります。', true);
+  }
+})();
+</script>
+</body>
+</html>
