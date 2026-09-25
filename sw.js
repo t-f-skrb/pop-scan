@@ -2,9 +2,9 @@
 // ・アプリ本体(更新が多い)と、ライブラリ・文字認識データ(ほぼ変わらない・大きい)を別々に保存し、
 //   更新のたびに大きなデータを取り直さないようにする
 // ・起動は保存済みのデータを優先(キャッシュ優先)し、電波が弱い場所でも待たされないようにする
-const APP_CACHE = 'pop-scan-app-v13';
+const APP_CACHE = 'pop-scan-app-v14';
 const LIB_CACHE = 'pop-scan-lib-v1';
-const APP_FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
+const APP_FILES = ['./', './index.html', './fonts/barlow-condensed-latin-600-normal.woff2', './fonts/barlow-condensed-latin-700-normal.woff2', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 const LIB_FILES = ['./zxing.min.js', './encoding.min.js', './xlsx.mini.min.js', './qrcode.js',
   './ocr/tesseract.min.js', './ocr/worker.min.js', './ocr/core/tesseract-core-simd-lstm.wasm.js', './ocr/core/tesseract-core-lstm.wasm.js',
   './ocr/lang/jpn.traineddata.gz', './ocr/lang/eng.traineddata.gz'];

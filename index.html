@@ -13,167 +13,231 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>POPスキャン</title>
 <style>
+/* ===== POPスキャン:棚札レールをモチーフにしたデザイン =====
+   主役は黄色い「レール」(ゴンドラ前面の棚札レール)。それ以外は白と鋼色で静かにまとめる。
+   数字(JAN・価格・段・順番)は棚札の値段表示のような細身の数字書体で統一する。 */
+@font-face{font-family:"POP Num";src:url(fonts/barlow-condensed-latin-600-normal.woff2) format("woff2");font-weight:600;font-display:swap}
+@font-face{font-family:"POP Num";src:url(fonts/barlow-condensed-latin-700-normal.woff2) format("woff2");font-weight:700;font-display:swap}
 :root{
-  --bg:#EEF0F5; --paper:#FFFFFF; --ink:#1B1F3B; --sub:#5B6078; --rule:#D5D8E2; --field:#F6F7FA;
-  --tag:#F5C400; --tag-ink:#1B1F3B; --ok:#1F7A4D; --warn:#B3261E; --night:#13162A;
+  --steel:#1F2B38; --floor:#EEF1F4; --paper:#FFFFFF; --ink:#1F2B38; --sub:#667385; --line:#DCE1E7; --field:#F5F7F9;
+  --rail:#FFD23F; --rail-edge:#E0B400; --rail-ink:#1F2B38;
+  --go:#1FA36A; --stop:#C93C3C;
+  --ok:var(--go); --warn:var(--stop); --tag:var(--rail); --tag-ink:var(--rail-ink); --rule:var(--line); --bg:var(--floor);
+  --num:"POP Num","Barlow Condensed","Arial Narrow",sans-serif;
+  --jp:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,system-ui,sans-serif;
+  --r-s:6px; --r-m:10px; --r-l:18px;
   box-sizing:border-box;
 }
 @media (prefers-color-scheme: dark){
-  :root{ --bg:#13162A; --paper:#1E2238; --ink:#EDEFF7; --sub:#A3A8C3; --rule:#343956; --field:#262B45; --ok:#5FD39A; --warn:#FF8A80; }
+  :root{ --steel:#121A24; --floor:#0F151D; --paper:#18212C; --ink:#E8EDF3; --sub:#97A3B3; --line:#2A3542; --field:#1F2A36; --go:#3DC48A; --stop:#F07575; }
 }
 *,*::before,*::after{box-sizing:inherit}
 [hidden]{display:none !important}
 html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--ink);
-  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,system-ui,sans-serif;
-  font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
-button{font:inherit;font-weight:700;border:0;border-radius:10px;cursor:pointer;min-height:44px;padding:10px 14px;color:inherit;background:none}
-button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #4C7BF4;outline-offset:2px}
-.primary{background:var(--tag);color:var(--tag-ink)}
-.secondary{background:var(--paper);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--rule)}
-.ghost{color:var(--sub);font-weight:500;min-height:40px;padding:8px 10px}
-.danger{color:var(--warn)}
+body{margin:0;background:var(--floor);color:var(--ink);font-family:var(--jp);font-size:16px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+.num{font-family:var(--num);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+svg.i{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
-/* top bar */
-.top{position:sticky;top:0;z-index:5;background:var(--ink);color:#fff;display:flex;align-items:center;gap:10px;
-  padding:calc(env(safe-area-inset-top,0px) + 8px) 12px 8px}
-@media (prefers-color-scheme: dark){ .top{background:#0E1122} }
-.top h1{font-size:1.05rem;margin:0;font-weight:800;flex:1}
-.top .gon{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;background:rgba(255,255,255,.1);text-align:left;padding:4px 12px;min-height:44px}
-.top .gon small{font-size:.7rem;opacity:.75;font-weight:500;line-height:1.2}
-.top .gon b{font-size:1rem;font-weight:800;line-height:1.3;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.top .gon b::after{content:" ▾";font-size:.8rem;opacity:.8}
-.glist{display:flex;flex-direction:column;gap:8px;margin-top:10px}
-.glist button{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 10px;text-align:left;background:var(--field);box-shadow:inset 0 0 0 1.5px var(--rule);padding:10px 14px;min-height:56px}
-.glist button[aria-current="true"]{box-shadow:inset 0 0 0 2.5px var(--ink);background:var(--paper)}
-.glist b{font-size:1rem;overflow-wrap:anywhere}
-.glist small{grid-column:1;color:var(--sub);font-weight:500;font-size:.8rem}
-.glist .n{grid-row:1/span 2;grid-column:2;font-variant-numeric:tabular-nums;color:var(--sub);font-weight:700}
-.row2{display:flex;gap:8px;margin-top:8px}
-.qrbox{background:#fff;border-radius:12px;padding:16px;margin:12px auto 8px;max-width:320px;box-shadow:inset 0 0 0 1.5px var(--rule)}
-.qrbox svg{display:block;width:100%;height:auto}
-.qrurl{font-size:.8rem;color:var(--sub);text-align:center;overflow-wrap:anywhere;margin:0 0 4px}
-.row2>*{flex:1}
-.top .count{font-size:.85rem;opacity:.8}
-.top .count b{font-size:1.1rem;opacity:1;font-variant-numeric:tabular-nums}
-.top button{color:#fff;min-height:38px;padding:6px 10px;font-weight:600;background:rgba(255,255,255,.1)}
+/* ---- buttons ---- */
+button{font:inherit;font-weight:700;border:0;border-radius:var(--r-m);cursor:pointer;min-height:44px;padding:10px 16px;color:inherit;background:none;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px}
+button:focus-visible,input:focus-visible,select:focus-visible,.file-btn:focus-within{outline:3px solid #4C7BF4;outline-offset:2px}
+button:disabled{opacity:.4;cursor:not-allowed}
+.primary{background:var(--steel);color:#fff}
+@media (prefers-color-scheme: dark){ .primary{background:var(--rail);color:var(--rail-ink)} }
+.secondary{background:var(--paper);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--line)}
+.ghost{color:var(--sub);font-weight:600;min-height:40px;padding:8px 10px}
+.danger{color:var(--stop)}
+@media (hover:hover){ .secondary:hover{box-shadow:inset 0 0 0 1.5px var(--sub)} }
 
-/* scanner */
-.scanner{position:relative;background:#000;height:min(46vh,420px);overflow:hidden}
+/* ---- header ---- */
+.top{position:sticky;top:0;z-index:6;background:var(--steel);color:#fff;display:flex;align-items:center;gap:6px;
+  padding:calc(env(safe-area-inset-top,0px) + 6px) 8px 6px 6px}
+.top .gon{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:4px 10px;min-height:48px;gap:0;border-radius:var(--r-m)}
+.top .gon small{font-size:.7rem;color:#AFC0D2;font-weight:500;line-height:1.25}
+.top .gon b{font-size:1.08rem;font-weight:800;line-height:1.3;max-width:100%;display:flex;align-items:center;gap:4px}
+.top .gon b span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top .gon svg{width:16px;height:16px;opacity:.7}
+@media (hover:hover){ .top .gon:hover{background:rgba(255,255,255,.07)} }
+.top .count{display:flex;align-items:baseline;gap:3px;color:#AFC0D2;font-size:.78rem;padding:0 6px}
+.top .count b{font-family:var(--num);font-weight:700;font-size:1.6rem;color:#fff;line-height:1}
+.top .icon-btn{width:48px;height:48px;min-height:0;padding:0;color:#fff;border-radius:50%}
+@media (hover:hover){ .top .icon-btn:hover{background:rgba(255,255,255,.1)} }
+
+/* ---- scanner ---- */
+.scanner{position:relative;background:#000;height:min(42vh,400px);overflow:hidden}
 .scanner video{width:100%;height:100%;object-fit:cover;display:block}
-.scanner .veil{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:#fff;background:var(--night);padding:24px}
-.scanner .veil p{margin:12px 0 0;color:#C9CCDA;font-size:.9rem}
-.scanner .veil button{min-width:220px;min-height:56px;font-size:1.05rem}
-.frame{position:absolute;left:6%;right:6%;top:14%;bottom:18%;border:3px solid var(--tag);border-radius:10px;pointer-events:none;transition:border-color .15s}
-.frame.hit{border-color:#3DDC84}
-.frame::after{content:"";position:absolute;left:6px;right:6px;top:50%;height:2px;background:#E63946;opacity:.9}
+.frame{position:absolute;left:6%;right:6%;top:14%;bottom:18%;pointer-events:none;
+  --c:var(--rail);
+  background:
+    linear-gradient(var(--c),var(--c)) top left/28px 4px no-repeat, linear-gradient(var(--c),var(--c)) top left/4px 28px no-repeat,
+    linear-gradient(var(--c),var(--c)) top right/28px 4px no-repeat, linear-gradient(var(--c),var(--c)) top right/4px 28px no-repeat,
+    linear-gradient(var(--c),var(--c)) bottom left/28px 4px no-repeat, linear-gradient(var(--c),var(--c)) bottom left/4px 28px no-repeat,
+    linear-gradient(var(--c),var(--c)) bottom right/28px 4px no-repeat, linear-gradient(var(--c),var(--c)) bottom right/4px 28px no-repeat;
+  transition:--c .2s}
+.frame.hit{--c:#3DDC84}
+.frame::after{content:"";position:absolute;left:8px;right:8px;top:50%;height:2px;background:#FF5A5A;box-shadow:0 0 12px #FF5A5A;opacity:.85}
 @media (prefers-reduced-motion:no-preference){
-  .frame::after{animation:sweep 1.4s ease-in-out infinite alternate}
-  @keyframes sweep{from{top:15%}to{top:85%}}
+  .frame::after{animation:sweep 1.6s ease-in-out infinite alternate}
+  @keyframes sweep{from{top:12%}to{top:88%}}
 }
-.scanner.paused .frame::after{animation:none;opacity:.3}
+.scanner.paused .frame::after{animation:none;opacity:.25}
+.sc-msg{position:absolute;left:12px;top:10px;right:12px;color:#fff;font-size:.85rem;text-shadow:0 1px 3px #000}
 .sc-tools{position:absolute;right:10px;bottom:10px;display:flex;gap:8px}
-.sc-tools button{background:rgba(0,0,0,.55);color:#fff;min-height:40px;padding:6px 12px;font-weight:600;backdrop-filter:blur(4px)}
-.sc-tools button[aria-pressed="true"]{background:var(--tag);color:var(--tag-ink)}
-.sc-msg{position:absolute;left:10px;top:10px;right:10px;color:#fff;font-size:.85rem;text-shadow:0 1px 3px #000}
+.sc-tools button{background:rgba(15,21,29,.6);color:#fff;min-height:40px;padding:6px 14px;font-weight:600;font-size:.88rem;border-radius:999px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.sc-tools button[aria-pressed="true"]{background:var(--rail);color:var(--rail-ink)}
+.veil{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:#fff;padding:24px;
+  background:radial-gradient(120% 90% at 50% 100%,#2A3A4C 0%,#121A24 70%)}
+.veil p{margin:14px 0 0;color:#B6C3D1;font-size:.88rem;line-height:1.7}
+.veil .start{background:var(--rail);color:var(--rail-ink);min-height:58px;padding:0 30px;font-size:1.05rem;border-radius:999px;box-shadow:0 6px 0 var(--rail-edge)}
+.veil .start:active{transform:translateY(3px);box-shadow:0 3px 0 var(--rail-edge)}
 
-/* last scan card */
-.main{padding:12px 12px calc(env(safe-area-inset-bottom,0px) + 110px);max-width:640px;margin:0 auto}
-.last{background:var(--paper);border-radius:4px;border-top:8px solid var(--tag);padding:12px 14px;display:none;margin-bottom:12px}
-.last.show{display:block}
-.last .jan{font-size:1.5rem;font-weight:800;letter-spacing:.05em;font-variant-numeric:tabular-nums;line-height:1.2}
-.last .nm{font-weight:700;margin-top:4px;overflow-wrap:anywhere}
-.last .mt{font-size:.88rem;color:var(--sub)}
-.last .row{display:flex;align-items:flex-start;gap:8px}
-.last .row>div{flex:1;min-width:0}
-.note{font-size:.78rem;font-weight:700;border-radius:4px;padding:1px 7px;display:inline-block;margin-left:4px;vertical-align:2px}
-.note.dup{background:rgba(179,38,30,.12);color:var(--warn)}
-.note.mst{background:rgba(31,122,77,.14);color:var(--ok)}
-.note.ocr{background:rgba(245,196,0,.25);color:var(--ink)}
+/* ---- rail(主役)---- */
+.rail{background:var(--rail);color:var(--rail-ink);display:grid;grid-template-columns:minmax(0,1.25fr) auto minmax(0,.6fr);align-items:stretch;
+  border-bottom:5px solid var(--rail-edge);box-shadow:inset 0 3px 0 rgba(255,255,255,.35)}
+.rail>*{min-height:66px;display:flex;flex-direction:column;justify-content:center;padding:6px 14px;min-width:0}
+.rail>*+*{border-left:1.5px solid rgba(31,43,56,.16)}
+.rail small{font-size:.7rem;font-weight:600;opacity:.72;line-height:1.2}
+.rail .shelf{align-items:flex-start;text-align:left;border-radius:0;gap:0}
+.rail .shelf b{font-size:1.2rem;font-weight:800;line-height:1.3;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rail .shelf b.none{font-weight:600;opacity:.6}
+@media (hover:hover){ .rail .shelf:hover{background:rgba(255,255,255,.22)} }
+.rail .tier{flex-direction:row;align-items:center;gap:2px;padding:6px 6px}
+.rail .tier>div{text-align:center;min-width:3.4em;display:flex;flex-direction:column;align-items:center}
+.rail .tier b{font-family:var(--num);font-weight:700;font-size:2.1rem;line-height:1}
+.rail .tier button{width:44px;height:44px;min-height:0;padding:0;border-radius:50%;background:rgba(31,43,56,.1);color:var(--rail-ink)}
+.rail .tier button:active{background:rgba(31,43,56,.2)}
+.rail .next{align-items:flex-end;text-align:right}
+.rail .next b{font-family:var(--num);font-weight:700;font-size:1.7rem;line-height:1}
 
-.loc{display:grid;grid-template-columns:1.3fr 1.4fr .8fr;gap:8px;margin-bottom:10px}
-.loc>*{background:var(--paper);border-radius:10px;min-height:64px;padding:8px 10px;display:flex;flex-direction:column;justify-content:center;min-width:0}
-.loc small{font-size:.72rem;color:var(--sub);font-weight:500;line-height:1.2}
-.loc b{font-size:1.15rem;font-weight:800;line-height:1.3;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.loc .shelf{align-items:flex-start;text-align:left;box-shadow:inset 0 0 0 1.5px var(--rule)}
-.loc .shelf b.none{color:var(--sub);font-weight:600;font-size:1rem}
-.loc .tier{flex-direction:row;align-items:center;justify-content:space-between;gap:4px;padding:6px}
-.loc .tier>div{text-align:center;flex:1}
-.loc .tier b{font-size:1.5rem}
-.loc .tier button{width:44px;height:48px;min-height:0;padding:0;font-size:1.5rem;line-height:1;background:var(--ink);color:#fff;border-radius:8px;flex:none}
-@media (prefers-color-scheme: dark){ .loc .tier button{background:var(--tag);color:var(--tag-ink)} }
-.loc .next{text-align:center;align-items:center}
-.grp{font-size:.85rem;font-weight:700;color:var(--sub);margin:14px 4px 6px;display:flex;justify-content:space-between}
-.grp:first-child{margin-top:0}
-.list .pos{display:inline-block;min-width:2.2em;font-weight:800;color:var(--ink);margin-right:6px}
-.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-.chips button{background:var(--field);box-shadow:inset 0 0 0 1.5px var(--rule);font-weight:600;min-height:40px;padding:6px 12px}
-.ord{display:grid;grid-template-columns:24px 3.2em 1fr 40px 40px;gap:6px;align-items:center;padding:8px 0;border-top:1px solid var(--rule)}
-.ord:first-child{border-top:0}
-.ord span{overflow-wrap:anywhere;font-size:.93rem}
-.ord b{font-size:.85rem;font-variant-numeric:tabular-nums}
-.ord button{min-height:38px;padding:0;background:var(--field);box-shadow:inset 0 0 0 1.5px var(--rule)}
-.ord input{width:20px;height:20px}
-.radio{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
-.radio label{flex:1;min-width:130px;display:flex;align-items:center;gap:8px;background:var(--field);border-radius:10px;padding:10px 12px;box-shadow:inset 0 0 0 1.5px var(--rule);font-weight:600;font-size:.93rem}
-.radio input{width:20px;height:20px;flex:none}
-.radio label:has(input:checked){box-shadow:inset 0 0 0 2px var(--ink)}
-.modes{display:grid;grid-template-columns:1fr 1fr;background:var(--paper);border-radius:10px;padding:4px;gap:4px;margin-bottom:10px}
-.modes button{min-height:40px;font-weight:600;color:var(--sub)}
-.modes button[aria-pressed="true"]{background:var(--ink);color:#fff}
-@media (prefers-color-scheme: dark){ .modes button[aria-pressed="true"]{background:var(--tag);color:var(--tag-ink)} }
-.tools{display:flex;gap:8px;margin-bottom:6px}
+/* ---- main ---- */
+.main{padding:14px 14px calc(env(safe-area-inset-bottom,0px) + 104px);max-width:680px;margin:0 auto}
+
+/* last scanned:棚札のような1枚 */
+.last{display:none;background:var(--paper);border-radius:var(--r-s);margin-bottom:14px;overflow:hidden;box-shadow:0 1px 0 var(--line)}
+.last.show{display:grid;grid-template-columns:minmax(0,1fr) auto;animation:pop .28s ease-out}
+@media (prefers-reduced-motion:reduce){ .last.show{animation:none} }
+@keyframes pop{from{transform:translateY(-4px);opacity:.3}to{transform:none;opacity:1}}
+.last .body{padding:12px 14px 12px 16px;border-left:6px solid var(--rail);min-width:0}
+.last .nm{font-weight:800;font-size:1.05rem;line-height:1.4;overflow-wrap:anywhere}
+.last .jan{font-family:var(--num);font-weight:600;font-size:1.15rem;color:var(--sub);letter-spacing:.04em;margin-top:2px}
+.last .mt{font-size:.82rem;color:var(--sub)}
+.last .side{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;padding:10px 12px 10px 4px;gap:6px}
+.last .price{font-family:var(--num);font-weight:700;font-size:2rem;line-height:1;white-space:nowrap}
+.last .price small{font-family:var(--jp);font-size:.75rem;font-weight:700;margin-left:2px}
+.last .price .tax{display:block;font-size:.95rem;font-weight:600;color:var(--sub);text-align:right;margin-top:2px}
+.last .side button{min-height:36px;padding:4px 12px;font-size:.85rem}
+.note{font-size:.72rem;font-weight:700;border-radius:999px;padding:2px 9px;display:inline-block;margin-left:6px;vertical-align:2px;font-family:var(--jp)}
+.note.dup{background:rgba(201,60,60,.12);color:var(--stop)}
+.note.ocr{background:var(--rail);color:var(--rail-ink)}
+.note.mst{background:rgba(31,163,106,.14);color:var(--go)}
+
+/* mode tabs */
+.modes{display:grid;grid-template-columns:1fr 1fr;border-bottom:1.5px solid var(--line);margin-bottom:6px}
+.modes button{border-radius:0;min-height:46px;font-weight:600;color:var(--sub);position:relative;padding:8px 4px}
+.modes button[aria-pressed="true"]{color:var(--ink);font-weight:800}
+.modes button[aria-pressed="true"]::after{content:"";position:absolute;left:18%;right:18%;bottom:-1.5px;height:3px;border-radius:3px;background:var(--ink)}
+.tools{display:flex;gap:4px;margin:2px -8px 0}
 .tools>*{flex:1}
-.file-btn{position:relative;display:flex;align-items:center;justify-content:center;border-radius:10px;min-height:44px;font-weight:700;background:var(--paper);box-shadow:inset 0 0 0 1.5px var(--rule);cursor:pointer;text-align:center;padding:8px}
+.file-btn{position:relative;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:var(--r-m);min-height:46px;font-weight:600;color:var(--sub);cursor:pointer;padding:8px}
 .file-btn input{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}
-.status{min-height:1.5em;font-size:.88rem;color:var(--sub);margin:6px 2px 4px}
-.status.err{color:var(--warn)}
+.tools .tool{color:var(--sub);font-weight:600}
+.dlg .file-btn{background:var(--paper);box-shadow:inset 0 0 0 1.5px var(--line);color:var(--ink);font-weight:700}
+@media (hover:hover){ .tools .tool:hover,.file-btn:hover{background:var(--paper);color:var(--ink)} }
+.status{min-height:1.5em;font-size:.85rem;color:var(--sub);margin:4px 2px 8px}
+.status.err{color:var(--stop)}
 
 /* list */
-h2{font-size:1rem;margin:16px 2px 8px;display:flex;justify-content:space-between;align-items:baseline}
-h2 small{font-weight:500;color:var(--sub);font-size:.82rem}
-.list{list-style:none;margin:0;padding:0;background:var(--paper);border-radius:12px;overflow:hidden}
-.list li{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:11px 14px;border-top:1px solid var(--rule);cursor:pointer}
+h2{font-size:.95rem;margin:14px 2px 10px;display:flex;justify-content:space-between;align-items:baseline;font-weight:800}
+h2 small{font-weight:500;color:var(--sub);font-size:.78rem}
+.grp{display:flex;align-items:baseline;gap:10px;margin:18px 2px 6px;font-size:.88rem;font-weight:800}
+.grp:first-child{margin-top:0}
+.grp::before{content:"";width:14px;height:5px;background:var(--rail);border-radius:2px;align-self:center}
+.grp .c{margin-left:auto;font-weight:500;color:var(--sub);font-size:.78rem}
+.list{list-style:none;margin:0;padding:0;background:var(--paper);border-radius:var(--r-m);overflow:hidden}
+.list li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:0 12px;padding:11px 14px;border-top:1px solid var(--line);cursor:pointer}
 .list li:first-child{border-top:0}
-.list .nm{font-weight:700;overflow-wrap:anywhere}
+@media (hover:hover){ .list li:hover{background:var(--field)} }
+.list li:active{background:var(--field)}
+.list .pos{font-family:var(--num);font-weight:700;font-size:1.35rem;color:var(--sub);min-width:1.3em;text-align:right;line-height:1}
+.list .pos:empty{display:none}
+.list .txt{min-width:0}
+.list .nm{font-weight:700;line-height:1.4;overflow-wrap:anywhere}
 .list .nm.none{color:var(--sub);font-weight:500}
-.list .mt{grid-column:1;font-size:.84rem;color:var(--sub);font-variant-numeric:tabular-nums}
-.list .ed{grid-row:1/span 2;grid-column:2;align-self:center;font-size:.85rem;color:var(--sub)}
-.empty{padding:22px 16px;text-align:center;color:var(--sub);background:var(--paper);border-radius:12px;font-size:.93rem}
+.list .mt{font-size:.8rem;color:var(--sub);display:flex;flex-wrap:wrap;gap:0 10px}
+.list .mt .j{font-family:var(--num);font-weight:600;font-size:.95rem;letter-spacing:.03em}
+.list .pr{text-align:right;font-family:var(--num);font-weight:700;font-size:1.3rem;line-height:1.05;white-space:nowrap}
+.list .pr small{display:block;font-size:.82rem;font-weight:600;color:var(--sub)}
+.list .pr:empty{display:none}
+.empty{padding:28px 18px;text-align:center;color:var(--sub);background:var(--paper);border-radius:var(--r-m);font-size:.9rem;line-height:1.8;border:1.5px dashed var(--line)}
 
 /* bottom bar */
-.bottom{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--paper);border-top:1px solid var(--rule);
-  padding:10px 12px calc(env(safe-area-inset-bottom,0px) + 10px);display:grid;grid-template-columns:2fr 1fr;gap:8px}
-.bottom .inner{display:contents}
+.bottom{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--paper);background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border-top:1px solid var(--line);padding:10px 14px calc(env(safe-area-inset-bottom,0px) + 10px);display:grid;grid-template-columns:1fr auto;gap:10px}
+.bottom button{min-height:50px}
+.bottom .secondary{padding:10px 20px}
 
-/* dialogs */
-dialog{border:0;border-radius:16px 16px 0 0;padding:0;margin:auto 0 0;width:100%;max-width:640px;margin-left:auto;margin-right:auto;
+/* ---- dialogs ---- */
+dialog{border:0;border-radius:var(--r-l) var(--r-l) 0 0;padding:0;margin:auto 0 0;width:100%;max-width:680px;margin-left:auto;margin-right:auto;
   background:var(--paper);color:var(--ink);max-height:92vh}
-dialog::backdrop{background:rgba(10,12,28,.55)}
-.dlg{padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 16px);overflow:auto;max-height:92vh}
-.dlg h3{margin:0 0 6px;font-size:1.1rem}
-label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
-.dlg input[type=text],.dlg input[type=password],.dlg select{width:100%;font:inherit;color:var(--ink);background:var(--field);border:1.5px solid var(--rule);border-radius:8px;padding:10px 12px;min-height:46px}
-.jan-in{font-size:1.4rem !important;font-weight:800;letter-spacing:.05em;font-variant-numeric:tabular-nums}
-.chk{font-size:.84rem;font-weight:700;margin-top:4px}
-.chk.ok{color:var(--ok)} .chk.ng{color:var(--warn)}
-.r3{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:8px}
-.acts{display:flex;gap:8px;margin-top:16px}
+dialog::backdrop{background:rgba(10,15,22,.55)}
+@media (prefers-reduced-motion:no-preference){ dialog[open]{animation:up .22s ease-out} @keyframes up{from{transform:translateY(24px);opacity:.5}to{transform:none;opacity:1}} }
+.dlg{padding:10px 18px calc(env(safe-area-inset-bottom,0px) + 18px);overflow:auto;max-height:92vh}
+.dlg::before{content:"";display:block;width:40px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 12px}
+.dlg h3{margin:0 0 6px;font-size:1.15rem;font-weight:800}
+label.f{display:block;font-size:.8rem;color:var(--sub);margin:14px 0 5px;font-weight:600}
+.dlg input[type=text],.dlg input[type=password],.dlg select{width:100%;font:inherit;color:var(--ink);background:var(--field);border:1.5px solid transparent;border-radius:var(--r-m);padding:10px 12px;min-height:48px;-webkit-appearance:none;appearance:none}
+.dlg select{background-image:linear-gradient(45deg,transparent 50%,var(--sub) 50%),linear-gradient(135deg,var(--sub) 50%,transparent 50%);background-position:calc(100% - 20px) 50%,calc(100% - 14px) 50%;background-size:6px 6px;background-repeat:no-repeat;padding-right:36px}
+.dlg input:focus,.dlg select:focus{border-color:var(--ink);outline:none;background-color:var(--paper)}
+.jan-in{font-family:var(--num) !important;font-size:1.7rem !important;font-weight:700;letter-spacing:.06em}
+.chk{font-size:.8rem;font-weight:700;margin-top:5px}
+.chk.ok{color:var(--go)} .chk.ng{color:var(--stop)}
+.r3{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:10px}
+.acts{display:flex;gap:10px;margin-top:18px}
 .acts .primary{flex:1}
-.sw{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--rule)}
+.sw{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 0;border-top:1px solid var(--line)}
 .sw:first-of-type{border-top:0}
-.sw span{font-size:.95rem}
-.sw small{display:block;color:var(--sub);font-size:.8rem}
-.sw input[type=checkbox]{width:24px;height:24px;flex:none}
-.hint{font-size:.82rem;color:var(--sub);margin:6px 0 0}
-.hint.warn{color:var(--warn)}
+.sw span{font-size:.95rem;font-weight:700}
+.sw small{display:block;color:var(--sub);font-size:.78rem;font-weight:400;margin-top:2px;line-height:1.6}
+/* スイッチ型のチェックボックス */
+.sw input[type=checkbox]{-webkit-appearance:none;appearance:none;width:50px;height:30px;border-radius:999px;background:var(--line);position:relative;flex:none;cursor:pointer;transition:background .15s}
+.sw input[type=checkbox]::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}
+.sw input[type=checkbox]:checked{background:var(--go)}
+.sw input[type=checkbox]:checked::after{transform:translateX(20px)}
+.sw input[type=checkbox]:disabled{opacity:.4}
+.hint{font-size:.8rem;color:var(--sub);margin:8px 0 0;line-height:1.7}
+.hint.warn{color:var(--stop)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.chips button{background:var(--field);font-weight:600;min-height:40px;padding:6px 14px;border-radius:999px}
+.ord{display:grid;grid-template-columns:24px 3.4em 1fr 40px 40px;gap:6px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.ord:first-child{border-top:0}
+.ord span{overflow-wrap:anywhere;font-size:.92rem}
+.ord b{font-size:.85rem}
+.ord button{min-height:38px;padding:0;background:var(--field);border-radius:var(--r-s)}
+.ord input{width:20px;height:20px;accent-color:var(--steel)}
+.radio{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.radio label{flex:1;min-width:130px;display:flex;align-items:center;gap:8px;background:var(--field);border-radius:var(--r-m);padding:12px;font-weight:600;font-size:.92rem;border:1.5px solid transparent}
+.radio input{width:18px;height:18px;flex:none;accent-color:var(--steel)}
+.radio label:has(input:checked){border-color:var(--ink);background:var(--paper)}
+.glist{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.glist button{display:grid;grid-template-columns:1fr auto;align-items:center;gap:0 10px;text-align:left;background:var(--field);padding:10px 14px;min-height:58px;border:1.5px solid transparent}
+.glist button[aria-current="true"]{border-color:var(--ink);background:var(--paper)}
+.glist b{font-size:1rem;overflow-wrap:anywhere}
+.glist small{grid-column:1;color:var(--sub);font-weight:500;font-size:.78rem}
+.glist .n{grid-row:1/span 2;grid-column:2;font-family:var(--num);font-size:1.3rem;font-weight:700;color:var(--sub)}
+.row2{display:flex;gap:8px;margin-top:10px}
+.row2>*{flex:1}
+.qrbox{background:#fff;border-radius:var(--r-m);padding:16px;margin:14px auto 8px;max-width:300px}
+.qrbox svg{display:block;width:100%;height:auto}
+.qrurl{font-size:.78rem;color:var(--sub);text-align:center;overflow-wrap:anywhere;margin:0 0 4px}
 </style>
 </head>
 <body>
 <header class="top">
-  <button class="gon" id="gonBtn" aria-label="ゴンドラを切り替え"><small>ゴンドラ</small><b id="gonName">ゴンドラ1</b></button>
-  <span class="count"><b id="count">0</b> 件</span>
-  <button id="setBtn" aria-label="設定">設定</button>
+  <button class="gon" id="gonBtn" aria-label="ゴンドラを切り替え"><small>ゴンドラ</small><b><span id="gonName">ゴンドラ1</span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></b></button>
+  <span class="count" aria-label="このゴンドラの件数"><b id="count">0</b>件</span>
+  <button class="icon-btn" id="setBtn" aria-label="設定"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
 </header>
 
 <section class="scanner paused" id="scanner">
@@ -186,32 +250,33 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
   </div>
   <div class="veil" id="veil">
     <div>
-      <button class="primary" id="startBtn">スキャンを開始</button>
-      <p>値札全体を黄色い枠に入れてかざすと、<br>JANと商品名・規格を読み取ります</p>
+      <button class="start" id="startBtn">スキャンを開始</button>
+      <p>値札全体を枠に入れてかざすと、<br>JANと商品名・規格を読み取ります</p>
     </div>
   </div>
 </section>
 
-<main class="main">
-  <div class="last" id="last">
-    <div class="row">
-      <div>
-        <div class="jan" id="lJan"></div>
-        <div class="nm" id="lName"></div>
-        <div class="mt" id="lMeta"></div>
-      </div>
-      <button class="secondary" id="lEdit" style="min-height:40px">編集</button>
-    </div>
+<div class="rail" id="loc">
+  <button class="shelf" id="shelfBtn" aria-label="棚を変更"><small>棚</small><b id="shelfName">未設定</b></button>
+  <div class="tier">
+    <button id="tierDown" aria-label="段を1つ減らす"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button>
+    <div><small id="tierLbl">段</small><b id="tierNo">1</b></div>
+    <button id="tierUp" aria-label="段を1つ増やす"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button>
   </div>
+  <div class="next"><small>次の順番</small><b id="nextPos">1</b></div>
+</div>
 
-  <div class="loc" id="loc">
-    <button class="shelf" id="shelfBtn" aria-label="棚を変更"><small>棚(タップで変更)</small><b id="shelfName">未設定</b></button>
-    <div class="tier">
-      <button id="tierDown" aria-label="段を1つ減らす">−</button>
-      <div><small id="tierLbl">段</small><b id="tierNo">1</b></div>
-      <button id="tierUp" aria-label="段を1つ増やす">+</button>
+<main class="main">
+  <div class="last" id="last" aria-live="polite">
+    <div class="body">
+      <div class="nm" id="lName"></div>
+      <div class="jan" id="lJan"></div>
+      <div class="mt" id="lMeta"></div>
     </div>
-    <div class="next"><small>次の順番</small><b id="nextPos">1</b></div>
+    <div class="side">
+      <div class="price" id="lPrice"></div>
+      <button class="secondary" id="lEdit">編集</button>
+    </div>
   </div>
 
   <div class="modes" role="group" aria-label="読み取り後の動作">
@@ -219,8 +284,8 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     <button id="modeConfirm" aria-pressed="false">確認してから追加</button>
   </div>
   <div class="tools">
-    <label class="file-btn">写真から読み取る<input type="file" id="photoIn" accept="image/*"></label>
-    <button class="secondary" id="manualBtn">JANを手入力</button>
+    <label class="file-btn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>写真から読み取る<input type="file" id="photoIn" accept="image/*"></label>
+    <button class="tool" id="manualBtn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M7 14h10"/></svg>JANを手入力</button>
   </div>
   <div class="status" id="status" role="status" aria-live="polite"></div>
 
@@ -229,7 +294,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
 </main>
 
 <nav class="bottom">
-  <button class="primary" id="exportBtn">書き出す</button>
+  <button class="primary" id="exportBtn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>書き出す</button>
   <button class="secondary" id="copyBtn">コピー</button>
 </nav>
 
@@ -589,22 +654,30 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
         if (grouped){
           const h = document.createElement('div'); h.className = 'grp';
           const t = document.createElement('span');
-          t.textContent = (it.shelf || '棚なし') + (it.tier ? '・' + it.tier + '段目' : '');
-          const c = document.createElement('span');
+          t.textContent = (it.shelf || '棚なし') + (it.tier ? '  ' + it.tier + '段目' : '');
+          const c = document.createElement('span'); c.className = 'c';
           c.textContent = list.filter(x => ((x.shelf || '') + '\u0000' + (x.tier || '')) === k).length + '件';
           h.append(t, c); w.appendChild(h);
         }
         ul = document.createElement('ul'); ul.className = 'list'; w.appendChild(ul);
       }
       const li = document.createElement('li');
+      li.setAttribute('aria-label', (it.name || it.jan || '商品') + 'を編集');
+      const ps = document.createElement('span'); ps.className = 'pos'; ps.textContent = grouped && it.pos ? it.pos : '';
+      const tx = document.createElement('div'); tx.className = 'txt';
       const nm = document.createElement('div');
       nm.className = 'nm' + (it.name ? '' : ' none');
-      if (grouped && it.pos){ const ps = document.createElement('span'); ps.className = 'pos'; ps.textContent = it.pos + '.'; nm.appendChild(ps); }
-      nm.appendChild(document.createTextNode(it.name || (it.ocrPending ? '文字を読み取り中…' : '(商品名なし)')));
+      nm.textContent = it.name || (it.ocrPending ? '文字を読み取り中…' : '(商品名なし)');
       const mt = document.createElement('div'); mt.className = 'mt';
-      mt.textContent = [it.jan, it.spec, priceText(it), (+it.face > 1 ? it.face + 'フェース' : '')].filter(Boolean).join('  /  ');
-      const ed = document.createElement('span'); ed.className = 'ed'; ed.textContent = '編集';
-      li.append(nm, ed, mt);
+      if (it.jan){ const j = document.createElement('span'); j.className = 'j'; j.textContent = it.jan; mt.appendChild(j); }
+      [it.spec, (+it.face > 1 ? it.face + 'フェース' : '')].filter(Boolean).forEach(v => { const e = document.createElement('span'); e.textContent = v; mt.appendChild(e); });
+      tx.append(nm, mt);
+      const pr = document.createElement('div'); pr.className = 'pr';
+      if (it.price || it.priceTax){
+        pr.textContent = Number(it.price || it.priceTax).toLocaleString('ja-JP');
+        const sm = document.createElement('small'); sm.textContent = it.price ? (it.priceTax ? '税込 ' + Number(it.priceTax).toLocaleString('ja-JP') : '本体') : '税込'; pr.appendChild(sm);
+      }
+      li.append(ps, tx, pr);
       li.onclick = () => openEdit(it.id);
       ul.appendChild(li);
     });
@@ -616,8 +689,14 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     $('lName').textContent = it.name || (it.ocrPending ? '文字を読み取り中…' : '(商品名なし)');
     if (note){ const n = document.createElement('span'); n.className = 'note ' + note[0]; n.textContent = note[1]; $('lName').appendChild(n); }
     const loc = (it.shelf || it.tier) ? [(it.shelf || ''), it.tier ? it.tier + '段' : '', it.pos ? it.pos + '番目' : ''].filter(Boolean).join(' ') : '';
-    $('lMeta').textContent = [loc, it.spec, priceText(it)].filter(Boolean).join('  /  ');
-    $('last').classList.add('show');
+    $('lMeta').textContent = [loc, it.spec].filter(Boolean).join('  ');
+    const pr = $('lPrice'); pr.textContent = '';
+    if (it.price || it.priceTax){
+      pr.append(document.createTextNode(Number(it.price || it.priceTax).toLocaleString('ja-JP')));
+      const y = document.createElement('small'); y.textContent = it.price ? '円' : '円(税込)'; pr.appendChild(y);
+      if (it.price && it.priceTax){ const t = document.createElement('span'); t.className = 'tax'; t.textContent = '税込 ' + Number(it.priceTax).toLocaleString('ja-JP'); pr.appendChild(t); }
+    }
+    const el = $('last'); el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
   }
   let lastId = null;
   $('lEdit').onclick = () => { if (lastId) openEdit(lastId); };
