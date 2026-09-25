@@ -2,7 +2,7 @@
 // ・アプリ本体(更新が多い)と、ライブラリ・文字認識データ(ほぼ変わらない・大きい)を別々に保存し、
 //   更新のたびに大きなデータを取り直さないようにする
 // ・起動は保存済みのデータを優先(キャッシュ優先)し、電波が弱い場所でも待たされないようにする
-const APP_CACHE = 'pop-scan-app-v17';
+const APP_CACHE = 'pop-scan-app-v18';
 const LIB_CACHE = 'pop-scan-lib-v1';
 // 起動に欠かせないもの(これだけは必ず保存する)
 const APP_FILES = ['./', './index.html'];

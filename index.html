@@ -65,6 +65,20 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .top .icon-btn{width:48px;height:48px;min-height:0;padding:0;color:#fff;border-radius:50%}
 @media (hover:hover){ .top .icon-btn:hover{background:rgba(255,255,255,.1)} }
 
+/* ---- インストール案内 ---- */
+.inst-hero{display:flex;align-items:center;gap:14px;margin:4px 0 6px}
+.inst-hero img{width:64px;height:64px;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,.18);flex:none}
+.inst-hero b{font-size:1.2rem;display:block}
+.inst-hero small{color:var(--sub);font-size:.82rem}
+.steps{list-style:none;margin:14px 0 0;padding:0;counter-reset:st}
+.steps li{counter-increment:st;display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:start;padding:12px 0;border-top:1px solid var(--line);font-size:.95rem;line-height:1.6}
+.steps li:first-child{border-top:0}
+.steps li::before{content:counter(st);width:30px;height:30px;border-radius:50%;background:var(--rail);color:var(--rail-ink);font-family:var(--num);font-weight:700;font-size:1.1rem;display:grid;place-items:center}
+.steps .ico{display:inline-flex;vertical-align:-4px;padding:2px 6px;border-radius:6px;background:var(--field);margin:0 2px}
+.steps .ico svg{width:18px;height:18px}
+.inst-big{width:100%;min-height:56px;font-size:1.05rem;margin-top:14px}
+.warnbox{background:rgba(201,60,60,.1);color:var(--stop);border-radius:var(--r-m);padding:12px 14px;font-size:.88rem;font-weight:600;margin-top:12px;line-height:1.6}
+
 /* ---- 通信状態の帯 ---- */
 .net{display:flex;align-items:center;gap:10px;padding:8px 14px;font-size:.84rem;font-weight:600;background:#2A3A4C;color:#fff}
 .net i{width:9px;height:9px;border-radius:50%;flex:none;background:#F5A524}
@@ -404,11 +418,20 @@ label.f{display:block;font-size:.8rem;color:var(--sub);margin:14px 0 5px;font-we
   </form>
 </dialog>
 
+<!-- インストール案内 -->
+<dialog id="instDlg">
+  <form method="dialog" class="dlg">
+    <div class="inst-hero"><img src="icon-192.png" alt=""><div><b>POPスキャン</b><small>ホーム画面に追加して、アプリとして使えます</small></div></div>
+    <div id="instBody"></div>
+    <div class="acts"><button type="submit" class="secondary" style="flex:1" id="instClose">あとで</button></div>
+  </form>
+</dialog>
+
 <!-- アプリのQRコード -->
 <dialog id="qrDlg">
   <form method="dialog" class="dlg">
-    <h3>他のスマホで開く</h3>
-    <p class="hint">他のスマホのカメラでこのQRコードを読み取ると、このアプリが開きます。開いたあと「ホーム画面に追加」すれば、アプリとして使えます。</p>
+    <h3>アプリをインストールするQRコード</h3>
+    <p class="hint">他のスマホのカメラでこのQRコードを読み取ると、インストールの案内付きでアプリが開きます。案内に沿って進めると、ホーム画面にアプリが追加されます。</p>
     <div class="qrbox" id="qrBox"></div>
     <p class="qrurl" id="qrUrl"></p>
     <p class="hint">読み取ったリストや設定は、それぞれのスマホに別々に保存されます(このスマホのリストは移りません)。</p>
@@ -470,8 +493,12 @@ label.f{display:block;font-size:.8rem;color:var(--sub);margin:14px 0 5px;font-we
       <p class="hint" id="offInfo" style="margin:8px 0">確認しています…</p>
       <div class="acts" style="margin-top:6px"><button type="button" class="secondary" id="offBtn" style="flex:1">オフライン用データを保存(約14MB)</button></div>
     </div>
+    <div class="sw" style="display:block;border-top:1px solid var(--rule)" id="sInstWrap">
+      <span>このスマホにインストール<small>ホーム画面に追加すると、全画面のアプリとして使え、保存データも消えにくくなります</small></span>
+      <div class="acts" style="margin-top:8px"><button type="button" class="secondary" id="sInst" style="flex:1">インストールの方法を見る</button></div>
+    </div>
     <div class="sw" style="display:block;border-top:1px solid var(--rule)">
-      <span>他のスマホで開く<small>このアプリのアドレスをQRコードで表示します。他のスマホのカメラで読み取ると、同じアプリが開きます</small></span>
+      <span>他のスマホにインストール<small>インストール用のQRコードを表示します。他のスマホのカメラで読み取ると、インストールの案内が開きます</small></span>
       <div class="acts" style="margin-top:8px"><button type="button" class="secondary" id="sQr" style="flex:1">QRコードを表示</button></div>
     </div>
     <div class="acts">
@@ -1755,26 +1782,28 @@ label.f{display:block;font-size:.8rem;color:var(--sub);margin:14px 0 5px;font-we
 
   // ---------- アプリのQRコード ----------
   const appUrl = () => location.origin + location.pathname.replace(/index\.html$/, '');
+  // install=1:インストール案内を出す / openExternalBrowser=1:LINEで読み取った場合に通常のブラウザで開かせる
+  const installUrl = () => appUrl() + '?install=1&openExternalBrowser=1';
   function qrMatrix(text){
     const q = qrcode(0, 'M'); q.addData(text); q.make();
     return q;
   }
   $('sQr').onclick = () => {
-    const url = appUrl();
+    const url = installUrl();
     try {
       const q = qrMatrix(url);
       $('qrBox').innerHTML = q.createSvgTag({ cellSize: 8, margin: 2, scalable: true });
     } catch(e){ $('qrBox').textContent = 'QRコードを作れませんでした'; }
-    $('qrUrl').textContent = url;
+    $('qrUrl').textContent = appUrl();
     $('qrShare').hidden = !navigator.share;
     $('qrDlg').showModal();
   };
   $('qrShare').onclick = async () => {
-    try { await navigator.share({ title: 'POPスキャン', url: appUrl() }); } catch(e){}
+    try { await navigator.share({ title: 'POPスキャン', url: installUrl() }); } catch(e){}
   };
   $('qrSave').onclick = async () => {
     // 印刷して売場やバックヤードに貼れるよう、アプリ名とアドレス入りの画像にする
-    const url = appUrl(), q = qrMatrix(url), n = q.getModuleCount();
+    const url = installUrl(), q = qrMatrix(url), n = q.getModuleCount();
     const cell = Math.max(8, Math.floor(720 / (n + 8))), size = cell * (n + 8), W = size + 80, H = size + 260;
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const g = c.getContext('2d');
@@ -1784,10 +1813,10 @@ label.f{display:block;font-size:.8rem;color:var(--sub);margin:14px 0 5px;font-we
     const ox = 40, oy = 120;
     for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (q.isDark(r, k)) g.fillRect(ox + (k + 4) * cell, oy + (r + 4) * cell, cell, cell);
     g.fillStyle = '#5B6078'; g.font = '400 22px ' + PDF_FONT;
-    g.fillText(fitText(g, url, W - 60), W / 2, oy + size + 30);
-    g.fillText('スマホのカメラで読み取って開く', W / 2, oy + size + 80);
+    g.fillText(fitText(g, appUrl(), W - 60), W / 2, oy + size + 30);
+    g.fillText('スマホのカメラで読み取ってインストール', W / 2, oy + size + 80);
     const blob = await new Promise(r => c.toBlob(r, 'image/png'));
-    await saveFile('POPスキャン_QRコード.png', blob, 'QRコード画像');
+    await saveFile('POPスキャン_インストール用QRコード.png', blob, 'QRコード画像');
   };
 
   // ---------- オフライン対応 ----------
@@ -1828,7 +1857,7 @@ label.f{display:block;font-size:.8rem;color:var(--sub);margin:14px 0 5px;font-we
   $('setBtn').addEventListener('click', () => checkOffline());
 
   // ---------- 通信状態の検出と自動更新 ----------
-  const APP_VERSION = '17';
+  const APP_VERSION = '18';
   const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
   // wifi / cell / unknown(iPhoneなど種類が分からない)/ offline
   function connKind(){
@@ -1906,6 +1935,65 @@ label.f{display:block;font-size:.8rem;color:var(--sub);margin:14px 0 5px;font-we
   window.addEventListener('online', () => { renderNet(); status('電波が戻りました'); setTimeout(() => autoNet(false), 1500); });
   window.addEventListener('offline', () => { renderNet(); status('オフラインになりました。読み取りと保存はそのまま使えます'); });
   if (conn && conn.addEventListener) conn.addEventListener('change', () => { renderNet(); if (canNet()) autoNet(false); });
+
+  // ---------- インストール案内 ----------
+  const isStandalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  const ua = navigator.userAgent;
+  const isIOS = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  const inAppBrowser = /Line\/|FBAN|FBAV|Instagram|MicroMessenger|KAKAOTALK/i.test(ua);
+  let installEvt = null;
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if ($('instDlg').open) renderInstall(); });
+  window.addEventListener('appinstalled', () => {
+    installEvt = null;
+    if ($('instDlg').open) $('instBody').innerHTML = '<div class="warnbox" style="background:rgba(31,163,106,.12);color:var(--go)">インストールしました。ホーム画面の「POPスキャン」のアイコンから開いてください。</div>';
+    $('sInstWrap').hidden = true;
+  });
+  const SHARE_ICO = '<span class="ico"><svg class="i" viewBox="0 0 24 24"><path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span>';
+  const MENU_ICO = '<span class="ico"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg></span>';
+  const PLUS_ICO = '<span class="ico"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg></span>';
+  function renderInstall(){
+    const b = $('instBody');
+    if (isStandalone()){ b.innerHTML = '<p class="hint">このスマホには、すでにアプリとしてインストールされています。</p>'; return; }
+    if (inAppBrowser){
+      b.innerHTML = '<div class="warnbox">LINEなどのアプリ内の画面では、インストールできません。</div>'
+        + '<ol class="steps"><li><span>画面右上(または右下)のメニュー ' + MENU_ICO + ' を押します。</span></li>'
+        + '<li><span>「' + (isIOS ? 'Safari' : 'ブラウザ') + 'で開く」または「他のアプリで開く」を選びます。</span></li>'
+        + '<li><span>開いた画面で、表示されるインストールの案内に進みます。</span></li></ol>';
+      return;
+    }
+    if (installEvt){
+      b.innerHTML = '<p class="hint">下のボタンを押し、表示された画面で「インストール」を選ぶと、ホーム画面にアプリが追加されます。</p><button type="button" class="primary inst-big" id="instGo">アプリをインストール</button>';
+      $('instGo').onclick = async () => {
+        try { installEvt.prompt(); const r = await installEvt.userChoice; if (r && r.outcome === 'accepted') $('instBody').innerHTML = '<div class="warnbox" style="background:rgba(31,163,106,.12);color:var(--go)">インストールしています。完了したら、ホーム画面の「POPスキャン」のアイコンから開いてください。</div>'; }
+        catch(e){}
+        installEvt = null;
+      };
+      return;
+    }
+    if (isIOS){
+      const safari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+      b.innerHTML = (safari ? '' : '<p class="hint">Safari以外のブラウザでも、iOS 16.4以降なら同じ手順で追加できます。うまくいかない場合はSafariで開いてください。</p>')
+        + '<ol class="steps">'
+        + '<li><span>画面の下(または上)にある共有ボタン ' + SHARE_ICO + ' を押します。見当たらないときは、画面を少し下にスクロールしてください。</span></li>'
+        + '<li><span>メニューを下にスクロールし、「ホーム画面に追加」 ' + PLUS_ICO + ' を押します。</span></li>'
+        + '<li><span>右上の「追加」を押します。ホーム画面に「POPスキャン」のアイコンができたら完了です。</span></li>'
+        + '<li><span>これからは、ホーム画面のアイコンから開いてください。</span></li></ol>';
+      return;
+    }
+    b.innerHTML = '<ol class="steps">'
+      + '<li><span>画面右上のメニュー ' + MENU_ICO + ' を押します。</span></li>'
+      + '<li><span>「アプリをインストール」または「ホーム画面に追加」を押します。</span></li>'
+      + '<li><span>確認画面で「インストール」(または「追加」)を押します。</span></li>'
+      + '<li><span>これからは、ホーム画面の「POPスキャン」のアイコンから開いてください。</span></li></ol>';
+  }
+  function openInstall(){ renderInstall(); $('instDlg').showModal(); }
+  $('sInst').onclick = openInstall;
+  $('sInstWrap').hidden = isStandalone();
+  // インストール用QRコードから開かれたときは、最初に案内を出す
+  if (/[?&]install=1/.test(location.search) && !isStandalone()){
+    setTimeout(openInstall, 400);
+    try { history.replaceState(null, '', location.pathname); } catch(e){}
+  }
 
   // ---------- 起動 ----------
   applyMode(); renderGon(); render(); loadMaster(); saveNetMode(); renderNet();
