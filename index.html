@@ -50,6 +50,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .glist small{grid-column:1;color:var(--sub);font-weight:500;font-size:.8rem}
 .glist .n{grid-row:1/span 2;grid-column:2;font-variant-numeric:tabular-nums;color:var(--sub);font-weight:700}
 .row2{display:flex;gap:8px;margin-top:8px}
+.qrbox{background:#fff;border-radius:12px;padding:16px;margin:12px auto 8px;max-width:320px;box-shadow:inset 0 0 0 1.5px var(--rule)}
+.qrbox svg{display:block;width:100%;height:auto}
+.qrurl{font-size:.8rem;color:var(--sub);text-align:center;overflow-wrap:anywhere;margin:0 0 4px}
 .row2>*{flex:1}
 .top .count{font-size:.85rem;opacity:.8}
 .top .count b{font-size:1.1rem;opacity:1;font-variant-numeric:tabular-nums}
@@ -322,6 +325,22 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
   </form>
 </dialog>
 
+<!-- アプリのQRコード -->
+<dialog id="qrDlg">
+  <form method="dialog" class="dlg">
+    <h3>他のスマホで開く</h3>
+    <p class="hint">他のスマホのカメラでこのQRコードを読み取ると、このアプリが開きます。開いたあと「ホーム画面に追加」すれば、アプリとして使えます。</p>
+    <div class="qrbox" id="qrBox"></div>
+    <p class="qrurl" id="qrUrl"></p>
+    <p class="hint">読み取ったリストや設定は、それぞれのスマホに別々に保存されます(このスマホのリストは移りません)。</p>
+    <div class="row2">
+      <button type="button" class="secondary" id="qrShare">アドレスを共有</button>
+      <button type="button" class="secondary" id="qrSave">QR画像を保存</button>
+    </div>
+    <div class="acts"><button type="submit" class="primary" style="flex:1">閉じる</button></div>
+  </form>
+</dialog>
+
 <!-- 棚の変更 -->
 <dialog id="shelfDlg">
   <form method="dialog" class="dlg" id="shelfForm">
@@ -356,6 +375,15 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
       <p class="hint">列の並びは「JANコード・商品名・規格・本体価格・税込価格」を想定しています。1行目に見出しがあれば、列名から自動で判別します。</p>
     </div>
     <p class="hint" id="sMsg"></p>
+    <div class="sw" style="display:block;border-top:1px solid var(--rule)">
+      <span>電波がない場所で使う<small>アプリと文字認識データをスマホに保存しておくと、Wi-Fiやモバイル通信がなくても起動・読み取りができます</small></span>
+      <p class="hint" id="offInfo" style="margin:8px 0">確認しています…</p>
+      <div class="acts" style="margin-top:6px"><button type="button" class="secondary" id="offBtn" style="flex:1">オフライン用データを保存(約14MB)</button></div>
+    </div>
+    <div class="sw" style="display:block;border-top:1px solid var(--rule)">
+      <span>他のスマホで開く<small>このアプリのアドレスをQRコードで表示します。他のスマホのカメラで読み取ると、同じアプリが開きます</small></span>
+      <div class="acts" style="margin-top:8px"><button type="button" class="secondary" id="sQr" style="flex:1">QRコードを表示</button></div>
+    </div>
     <div class="acts">
       <button type="button" class="ghost danger" id="sClear">今のゴンドラのリストを削除</button>
       <button type="submit" class="primary" id="sDone">閉じる</button>
@@ -366,6 +394,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
 <script src="zxing.min.js"></script>
 <script src="encoding.min.js"></script>
 <script src="xlsx.mini.min.js"></script>
+<script src="qrcode.js"></script>
 <script src="ocr/tesseract.min.js"></script>
 <script>
 (function(){
@@ -784,7 +813,7 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     if (ocrLoading) return ocrLoading;
     $('scMsg').textContent = '文字認識を準備しています…(初回のみ少し時間がかかります)';
     // 日本語(商品名用)と英数字(価格・規格の数字用)の2つを用意する。大きな数字は英数字用のほうが正確に読める
-    const opt = { workerPath: 'ocr/worker.min.js', corePath: 'ocr/core', langPath: 'ocr/lang', gzip: true, cacheMethod: 'write' };
+    const opt = { workerPath: 'ocr/worker.min.js', corePath: 'ocr/core', langPath: 'ocr/lang', gzip: true, cacheMethod: 'write', workerBlobURL: false };
     ocrLoading = Promise.all([Tesseract.createWorker('jpn', 1, opt), Tesseract.createWorker('eng', 1, opt)]).then(async ([w, n]) => {
       await w.setParameters({ tessedit_pageseg_mode: '11', preserve_interword_spaces: '1' });
       await n.setParameters({ tessedit_pageseg_mode: '11', tessedit_char_whitelist: '0123456789gGkKmMlL.' });
@@ -1544,10 +1573,83 @@ label.f{display:block;font-size:.84rem;color:var(--sub);margin:12px 0 4px}
     allItems = allItems.filter(x => x.gid !== settings.gid); refreshView(); persistItems(); render(); showLast(null); status('このゴンドラのリストを削除しました');
   };
 
+  // ---------- アプリのQRコード ----------
+  const appUrl = () => location.origin + location.pathname.replace(/index\.html$/, '');
+  function qrMatrix(text){
+    const q = qrcode(0, 'M'); q.addData(text); q.make();
+    return q;
+  }
+  $('sQr').onclick = () => {
+    const url = appUrl();
+    try {
+      const q = qrMatrix(url);
+      $('qrBox').innerHTML = q.createSvgTag({ cellSize: 8, margin: 2, scalable: true });
+    } catch(e){ $('qrBox').textContent = 'QRコードを作れませんでした'; }
+    $('qrUrl').textContent = url;
+    $('qrShare').hidden = !navigator.share;
+    $('qrDlg').showModal();
+  };
+  $('qrShare').onclick = async () => {
+    try { await navigator.share({ title: 'POPスキャン', url: appUrl() }); } catch(e){}
+  };
+  $('qrSave').onclick = async () => {
+    // 印刷して売場やバックヤードに貼れるよう、アプリ名とアドレス入りの画像にする
+    const url = appUrl(), q = qrMatrix(url), n = q.getModuleCount();
+    const cell = Math.max(8, Math.floor(720 / (n + 8))), size = cell * (n + 8), W = size + 80, H = size + 260;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#1B1F3B'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = '700 48px ' + PDF_FONT; g.fillText('POPスキャン', W / 2, 70);
+    const ox = 40, oy = 120;
+    for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (q.isDark(r, k)) g.fillRect(ox + (k + 4) * cell, oy + (r + 4) * cell, cell, cell);
+    g.fillStyle = '#5B6078'; g.font = '400 22px ' + PDF_FONT;
+    g.fillText(fitText(g, url, W - 60), W / 2, oy + size + 30);
+    g.fillText('スマホのカメラで読み取って開く', W / 2, oy + size + 80);
+    const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+    await saveFile('POPスキャン_QRコード.png', blob, 'QRコード画像');
+  };
+
+  // ---------- オフライン対応 ----------
+  function swCall(msg, onMsg){
+    return new Promise(async (resolve, reject) => {
+      if (!('serviceWorker' in navigator)) return reject(new Error('nosw'));
+      const reg = await navigator.serviceWorker.ready.catch(() => null);
+      const sw = navigator.serviceWorker.controller || (reg && reg.active);
+      if (!sw) return reject(new Error('nosw'));
+      const ch = new MessageChannel();
+      ch.port1.onmessage = e => { if (onMsg) onMsg(e.data); if (e.data.type !== 'progress') resolve(e.data); };
+      sw.postMessage(msg, [ch.port2]);
+    });
+  }
+  let offReady = null;
+  async function checkOffline(){
+    if (!('serviceWorker' in navigator) || !window.isSecureContext){ $('offInfo').textContent = 'このブラウザではオフライン保存を使えません。'; $('offBtn').hidden = true; return; }
+    try {
+      const r = await Promise.race([swCall({ type: 'check' }), new Promise((_, rj) => setTimeout(() => rj(new Error('timeout')), 5000))]);
+      offReady = !r.missing.length;
+      $('offInfo').textContent = offReady ? '準備完了:電波がなくても起動・読み取りができます。' : '未完了:' + r.missing.length + '個のファイルがまだ保存されていません。Wi-Fiなど電波のある場所で「保存」を押してください。';
+      $('offInfo').style.color = offReady ? 'var(--ok)' : 'var(--warn)';
+      $('offBtn').textContent = offReady ? '保存し直す' : 'オフライン用データを保存(約14MB)';
+    } catch(e){ $('offInfo').textContent = 'アプリを一度閉じて開き直すと、オフラインの準備状況を確認できます。'; }
+  }
+  $('offBtn').onclick = async () => {
+    if (!navigator.onLine){ $('offInfo').textContent = '今は電波がありません。電波のある場所で保存してください。'; return; }
+    $('offBtn').disabled = true;
+    try {
+      if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); // 保存データが自動で消されにくくする
+      const r = await swCall({ type: 'precache' }, m => { if (m.type === 'progress') $('offInfo').textContent = '保存しています… ' + m.done + ' / ' + m.total; });
+      if (r.failed && r.failed.length) $('offInfo').textContent = r.failed.length + '個のファイルを保存できませんでした。電波の良い場所でもう一度お試しください。';
+      await checkOffline();
+    } catch(e){ $('offInfo').textContent = '保存できませんでした。アプリを開き直してからお試しください。'; }
+    $('offBtn').disabled = false;
+  };
+  $('setBtn').addEventListener('click', () => checkOffline());
+
   // ---------- 起動 ----------
   applyMode(); renderGon(); render(); loadMaster();
-  if ('serviceWorker' in navigator && location.protocol === 'https:'){
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator && window.isSecureContext){
+    navigator.serviceWorker.register('sw.js').then(() => checkOffline()).catch(() => {});
   }
   if (location.protocol !== 'https:' && location.hostname !== 'localhost'){
     status('カメラを使うには https:// のアドレスで開く必要があります。', true);
