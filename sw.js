@@ -2,13 +2,17 @@
 // ・アプリ本体(更新が多い)と、ライブラリ・文字認識データ(ほぼ変わらない・大きい)を別々に保存し、
 //   更新のたびに大きなデータを取り直さないようにする
 // ・起動は保存済みのデータを優先(キャッシュ優先)し、電波が弱い場所でも待たされないようにする
-const APP_CACHE = 'pop-scan-app-v14';
+const APP_CACHE = 'pop-scan-app-v15';
 const LIB_CACHE = 'pop-scan-lib-v1';
-const APP_FILES = ['./', './index.html', './fonts/barlow-condensed-latin-600-normal.woff2', './fonts/barlow-condensed-latin-700-normal.woff2', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
+// 起動に欠かせないもの(これだけは必ず保存する)
+const APP_FILES = ['./', './index.html'];
+// あると良いもの(見つからなくても更新は止めない)
+const APP_OPTIONAL = ['./manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png',
+  './barlow-condensed-latin-600-normal.woff2', './barlow-condensed-latin-700-normal.woff2'];
 const LIB_FILES = ['./zxing.min.js', './encoding.min.js', './xlsx.mini.min.js', './qrcode.js',
   './ocr/tesseract.min.js', './ocr/worker.min.js', './ocr/core/tesseract-core-simd-lstm.wasm.js', './ocr/core/tesseract-core-lstm.wasm.js',
   './ocr/lang/jpn.traineddata.gz', './ocr/lang/eng.traineddata.gz'];
-const ALL = APP_FILES.map(f => [APP_CACHE, f]).concat(LIB_FILES.map(f => [LIB_CACHE, f]));
+const ALL = APP_FILES.concat(APP_OPTIONAL).map(f => [APP_CACHE, f]).concat(LIB_FILES.map(f => [LIB_CACHE, f]));
 
 async function cacheOne(cacheName, file, force){
   const cache = await caches.open(cacheName);
@@ -32,7 +36,7 @@ self.addEventListener('install', e => {
   e.waitUntil((async () => {
     const app = await caches.open(APP_CACHE);
     await app.addAll(APP_FILES.map(f => new Request(f, { cache: 'reload' })));
-    await precacheAll(null, false);
+    await precacheAll(null, false); // 失敗したファイルがあっても続行する
     await self.skipWaiting();
   })());
 });
