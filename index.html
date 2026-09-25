@@ -65,6 +65,17 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .top .icon-btn{width:48px;height:48px;min-height:0;padding:0;color:#fff;border-radius:50%}
 @media (hover:hover){ .top .icon-btn:hover{background:rgba(255,255,255,.1)} }
 
+/* ---- 通信状態の帯 ---- */
+.net{display:flex;align-items:center;gap:10px;padding:8px 14px;font-size:.84rem;font-weight:600;background:#2A3A4C;color:#fff}
+.net i{width:9px;height:9px;border-radius:50%;flex:none;background:#F5A524}
+.net.upd{background:var(--go)}
+.net.upd i{background:#fff}
+.net span{flex:1;min-width:0}
+.net button{min-height:34px;padding:4px 14px;background:#fff;color:var(--steel);border-radius:999px;font-size:.82rem}
+.netst{display:flex;align-items:center;gap:8px;margin:8px 0 0;font-size:.88rem;font-weight:700}
+.netst i{width:10px;height:10px;border-radius:50%;background:var(--sub)}
+.netst.on i{background:var(--go)} .netst.cell i{background:#F5A524} .netst.off i{background:var(--stop)}
+
 /* ---- scanner ---- */
 .scanner{position:relative;background:#000;height:min(42vh,400px);overflow:hidden}
 .scanner video{width:100%;height:100%;object-fit:cover;display:block}
@@ -240,11 +251,14 @@ label.f{display:block;font-size:.8rem;color:var(--sub);margin:14px 0 5px;font-we
   <button class="icon-btn" id="setBtn" aria-label="設定"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
 </header>
 
+<div class="net" id="net" role="status" aria-live="polite" hidden><i></i><span id="netText"></span><button id="netBtn" hidden>更新する</button></div>
+
 <section class="scanner paused" id="scanner">
   <video id="video" playsinline muted></video>
   <div class="frame" id="frame"></div>
   <div class="sc-msg" id="scMsg"></div>
   <div class="sc-tools">
+    <button id="zoomBtn" hidden>ズーム 1x</button>
     <button id="torchBtn" aria-pressed="false" hidden>ライト</button>
     <button id="pauseBtn">一時停止</button>
   </div>
@@ -441,6 +455,17 @@ label.f{display:block;font-size:.8rem;color:var(--sub);margin:14px 0 5px;font-we
     </div>
     <p class="hint" id="sMsg"></p>
     <div class="sw" style="display:block;border-top:1px solid var(--rule)">
+      <span>通信の状態</span>
+      <div class="netst" id="netSt"><i></i><span id="netStText">確認しています…</span></div>
+      <p class="hint" id="netStNote"></p>
+    </div>
+    <label class="sw"><span>Wi-Fiのときだけ通信する<small id="sWifiNote">モバイル通信のときは、アプリの更新やデータのダウンロードをしません(通信量の節約)</small></span><input type="checkbox" id="sWifi"></label>
+    <div class="sw" style="display:block;border-top:1px solid var(--rule)">
+      <span>アプリの更新<small>電波が戻ったときに自動で確認します。すぐに確認したいときはボタンを押してください</small></span>
+      <p class="hint" id="updInfo" style="margin:8px 0"></p>
+      <div class="acts" style="margin-top:6px"><button type="button" class="secondary" id="updBtn" style="flex:1">今すぐ更新を確認</button></div>
+    </div>
+    <div class="sw" style="display:block;border-top:1px solid var(--rule)">
       <span>電波がない場所で使う<small>アプリと文字認識データをスマホに保存しておくと、Wi-Fiやモバイル通信がなくても起動・読み取りができます</small></span>
       <p class="hint" id="offInfo" style="margin:8px 0">確認しています…</p>
       <div class="acts" style="margin-top:6px"><button type="button" class="secondary" id="offBtn" style="flex:1">オフライン用データを保存(約14MB)</button></div>
@@ -475,7 +500,7 @@ label.f{display:block;font-size:.8rem;color:var(--sub);margin:14px 0 5px;font-we
   let allItems = load(ITEMS_KEY, []);
   let gondolas = load(GON_KEY, []);
   let items = [];
-  const settings = Object.assign({ beep: true, noDup: true, ocr: true, mode: 'auto', shelfOn: true, shelf: '', tier: 1 }, load(SET_KEY, {}));
+  const settings = Object.assign({ beep: true, noDup: true, ocr: true, mode: 'auto', shelfOn: true, shelf: '', tier: 1, wifiOnly: false }, load(SET_KEY, {}));
   if (settings.vibrate === undefined) settings.vibrate = settings.beep; // 旧版の設定を引き継ぐ
   const canVibrate = typeof navigator.vibrate === 'function';
   delete settings.key; delete settings.ai; delete settings.model; save(SET_KEY, settings); // 旧版のAPIキーが残っていれば消す
@@ -1153,14 +1178,70 @@ label.f{display:block;font-size:.8rem;color:var(--sub);margin:14px 0 5px;font-we
     if (!running || isPaused()) return;
     const code = normalize(raw);
     if (!isLen(code) || !validCheck(code)) return;
-    if (code === lastRead) readCount++; else { lastRead = code; readCount = 1; }
-    if (readCount < 2) return;               // 2回連続で同じ値のときだけ確定(誤読防止)
-    readCount = 0;
+    // チェックディジットが合っていれば1回の読み取りで確定する(反応を速くする)
     const t = cooldown.get(code) || 0;
     if (Date.now() - t < 2500) return;       // 同じ値札を連続で拾わない
     cooldown.set(code, Date.now());
     lastBar = bar || null;
     onCode(code);
+  }
+
+  // ---------- 読み取りループ ----------
+  // 映像から次の3つの範囲を順番に切り出して読む。
+  //  ・枠の中(実寸):ふだんの読み取り
+  //  ・画面中央を拡大(実寸):少し離れた小さなバーコード用(デジタルズームの代わり)
+  //  ・画面全体(縮小):枠から外れたバーコード用
+  const scanCanvas = document.createElement('canvas');
+  const scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+  let zxLive = null;
+  function zxDecodeCanvas(c){
+    if (!window.ZXing) return null;
+    if (!zxLive){
+      const hints = new Map();
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.UPC_A]);
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+      zxLive = new ZXing.MultiFormatReader(); zxLive.setHints(hints);
+    }
+    try {
+      const bmp = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(c)));
+      return zxLive.decodeWithState(bmp).getText();
+    } catch(e){ return null; } finally { try { zxLive.reset(); } catch(e){} }
+  }
+  function frameRect(){
+    const v = video, vw = v.videoWidth, vh = v.videoHeight;
+    const box = $('scanner').getBoundingClientRect(), fr = $('frame').getBoundingClientRect();
+    const s = Math.max(box.width / vw, box.height / vh);
+    const ox = (box.width - vw * s) / 2, oy = (box.height - vh * s) / 2;
+    let sx = Math.max(0, (fr.left - box.left - ox) / s), sy = Math.max(0, (fr.top - box.top - oy) / s);
+    return { sx, sy, sw: Math.min(vw - sx, fr.width / s), sh: Math.min(vh - sy, fr.height / s) };
+  }
+  function scanRegion(k){
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if (k === 0) return Object.assign(frameRect(), { max: 1600 });
+    if (k === 1){ const sw = vw * 0.5, sh = Math.min(vh, sw * 0.6); return { sx: (vw - sw) / 2, sy: (vh - sh) / 2, sw, sh, max: 1400, up: 2 }; }
+    return { sx: 0, sy: 0, sw: vw, sh: vh, max: 1280 };
+  }
+  let scanTurn = 0;
+  async function scanOnce(){
+    if (video.readyState < 2 || !video.videoWidth) return;
+    const r = scanRegion(scanTurn++ % 3);
+    if (r.sw < 16 || r.sh < 16) return;
+    // 中央の拡大範囲は最大2倍に引き伸ばして、細いバーコードの線を読み取りやすくする
+    const k = Math.min(r.up || 1, r.max / r.sw);
+    scanCanvas.width = Math.round(r.sw * k); scanCanvas.height = Math.round(r.sh * k);
+    scanCtx.drawImage(video, r.sx, r.sy, r.sw, r.sh, 0, 0, scanCanvas.width, scanCanvas.height);
+    if (detector){
+      const res = await detector.detect(scanCanvas).catch(() => []);
+      res.forEach(x => {
+        const b = x.boundingBox;
+        // 切り出した範囲の座標を、映像全体の座標に戻す(文字読み取りでバーコード部分を塗りつぶすため)
+        const bar = b ? { x: r.sx + b.x / k, y: r.sy + b.y / k, w: b.width / k, h: b.height / k } : null;
+        handleRaw(x.rawValue, bar);
+      });
+    } else {
+      const t = zxDecodeCanvas(scanCanvas);
+      if (t) handleRaw(t, null);
+    }
   }
 
   async function startScan(){
@@ -1171,27 +1252,27 @@ label.f{display:block;font-size:.8rem;color:var(--sub);margin:14px 0 5px;font-we
     try { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch(e){}
     $('scMsg').textContent = 'カメラを起動しています…';
     try {
-      const constraints = { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 }, focusMode: 'continuous' }, audio: false };
-      if (detector){
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        video.srcObject = stream; await video.play();
-        running = true;
-        const my = ++loopId;
-        const tick = async () => {
-          if (!running || my !== loopId) return;
-          if (!isPaused() && video.readyState >= 2){
-            try { const r = await detector.detect(video); r.forEach(x => handleRaw(x.rawValue, barBox(x))); } catch(e){}
-          }
-          setTimeout(tick, 90);
-        };
-        tick();
-      } else {
-        running = true;
-        await zxReader().decodeFromConstraints(constraints, video, res => { if (res) handleRaw(res.getText(), null); });
+      // 解像度を高めにして、離れた値札の細いバーコードも読めるようにする
+      const constraints = { video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1440 }, advanced: [{ focusMode: 'continuous' }] }, audio: false };
+      let stream;
+      try { stream = await navigator.mediaDevices.getUserMedia(constraints); }
+      catch(e){
+        if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) throw e;
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
       }
+      video.srcObject = stream; await video.play();
+      running = true;
+      const my = ++loopId;
+      const tick = async () => {
+        if (!running || my !== loopId) return;
+        if (!isPaused()){ try { await scanOnce(); } catch(e){} }
+        setTimeout(tick, 40);
+      };
+      tick();
       $('veil').hidden = true; $('scMsg').textContent = '';
       setPaused(false, 'user');
       setupTorch();
+      setupZoom();
       ocrInit();
       status('値札のバーコードにかざしてください');
     } catch(e){
@@ -1201,11 +1282,30 @@ label.f{display:block;font-size:.8rem;color:var(--sub);margin:14px 0 5px;font-we
       status(denied ? 'カメラの使用が許可されていません。ブラウザの設定でこのサイトのカメラを許可してください。' : 'カメラを起動できませんでした(' + (e && e.name || 'エラー') + ')。', true);
     }
   }
+  // 光学ズーム(対応するスマホのみ):離れた位置からでも読めるようにする
+  function setupZoom(){
+    const s = video.srcObject, track = s && s.getVideoTracks ? s.getVideoTracks()[0] : null;
+    let caps = null;
+    try { caps = track && track.getCapabilities ? track.getCapabilities() : null; } catch(e){}
+    const zc = caps && caps.zoom;
+    if (!zc || !(zc.max > zc.min)){ $('zoomBtn').hidden = true; return; }
+    const steps = [1, 1.5, 2, 3].filter(z => z >= zc.min && z <= zc.max);
+    if (steps.length < 2){ $('zoomBtn').hidden = true; return; }
+    let idx = Math.max(0, steps.indexOf(settings.zoom || 1));
+    const apply = async () => {
+      try { await track.applyConstraints({ advanced: [{ zoom: steps[idx] }] }); } catch(e){}
+      $('zoomBtn').textContent = 'ズーム ' + steps[idx] + 'x';
+      $('zoomBtn').setAttribute('aria-pressed', String(steps[idx] > 1));
+    };
+    $('zoomBtn').hidden = false;
+    $('zoomBtn').onclick = () => { idx = (idx + 1) % steps.length; settings.zoom = steps[idx]; persistSettings(); apply(); };
+    apply();
+  }
   function stopScan(){
     running = false; loopId++;
     if (zx) try { zx.reset(); } catch(e){}
     const s = video.srcObject; if (s) s.getTracks().forEach(t => t.stop());
-    video.srcObject = null; $('veil').hidden = false; $('torchBtn').hidden = true;
+    video.srcObject = null; $('veil').hidden = false; $('torchBtn').hidden = true; $('zoomBtn').hidden = true;
     setPaused(false, 'user');
   }
   $('startBtn').onclick = startScan;
@@ -1636,12 +1736,13 @@ label.f{display:block;font-size:.8rem;color:var(--sub);margin:14px 0 5px;font-we
 
   // ---------- 設定 ----------
   function fillSettings(){
-    $('sBeep').checked = settings.beep; $('sVib').checked = settings.vibrate;
+    $('sBeep').checked = settings.beep; $('sWifi').checked = settings.wifiOnly; renderNet(); $('sVib').checked = settings.vibrate;
     $('sVib').disabled = !canVibrate;
     $('sVibNote').textContent = canVibrate ? '読み取ったときに振動で知らせます' : 'この端末・ブラウザは振動に対応していません(iPhoneなど)'; $('sNoDup').checked = settings.noDup; $('sShelf').checked = settings.shelfOn; $('sOcr').checked = settings.ocr; $('sMsg').textContent = '';
   }
   $('setBtn').onclick = () => { fillSettings(); setPaused(true, 'settings'); $('setDlg').showModal(); };
   $('setDlg').addEventListener('close', () => {
+    const wasWifi = settings.wifiOnly; settings.wifiOnly = $('sWifi').checked; if (wasWifi !== settings.wifiOnly){ saveNetMode(); renderNet(); if (canNet()) autoNet(true); }
     settings.beep = $('sBeep').checked; if (canVibrate) settings.vibrate = $('sVib').checked; settings.noDup = $('sNoDup').checked; settings.shelfOn = $('sShelf').checked; renderLoc(); settings.ocr = $('sOcr').checked;
     if (settings.ocr && running) ocrInit();
     persistSettings(); setPaused(false, 'settings');
@@ -1714,6 +1815,7 @@ label.f{display:block;font-size:.8rem;color:var(--sub);margin:14px 0 5px;font-we
   }
   $('offBtn').onclick = async () => {
     if (!navigator.onLine){ $('offInfo').textContent = '今は電波がありません。電波のある場所で保存してください。'; return; }
+    if (connKind() === 'cell' && !confirm('今はモバイル通信です。最大で約14MBの通信が発生します。保存しますか?')) return;
     $('offBtn').disabled = true;
     try {
       if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); // 保存データが自動で消されにくくする
@@ -1725,10 +1827,90 @@ label.f{display:block;font-size:.8rem;color:var(--sub);margin:14px 0 5px;font-we
   };
   $('setBtn').addEventListener('click', () => checkOffline());
 
+  // ---------- 通信状態の検出と自動更新 ----------
+  const APP_VERSION = '17';
+  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
+  // wifi / cell / unknown(iPhoneなど種類が分からない)/ offline
+  function connKind(){
+    if (!navigator.onLine) return 'offline';
+    const t = conn && conn.type;
+    if (t === 'wifi' || t === 'ethernet') return 'wifi';
+    if (t === 'cellular' || t === 'wimax') return 'cell';
+    return 'unknown';
+  }
+  // 自動で通信してよいか(Wi-Fiのみ設定のときは、Wi-Fiと確認できた場合だけ)
+  const canNet = () => { const k = connKind(); return k !== 'offline' && (!settings.wifiOnly || k === 'wifi'); };
+  function saveNetMode(){ idbSet('netMode', { wifiOnly: !!settings.wifiOnly }).catch(() => {}); } // Service Worker にも伝える
+  let updReady = false;
+  function renderNet(){
+    const k = connKind(), bar = $('net');
+    if (updReady){
+      bar.hidden = false; bar.className = 'net upd';
+      $('netText').textContent = '新しい版に更新できます'; $('netBtn').hidden = false;
+    } else if (k === 'offline'){
+      bar.hidden = false; bar.className = 'net';
+      $('netText').textContent = 'オフライン:読み取りと保存はそのまま使えます'; $('netBtn').hidden = true;
+    } else bar.hidden = true;
+    const st = $('netSt');
+    st.className = 'netst ' + ({ wifi: 'on', cell: 'cell', offline: 'off', unknown: 'on' })[k];
+    $('netStText').textContent = ({ wifi: 'Wi-Fiで接続中', cell: 'モバイル通信で接続中', offline: '電波なし(オフライン)', unknown: '接続中' })[k];
+    $('netStNote').textContent = k === 'unknown'
+      ? 'このスマホ(iPhoneなど)では、Wi-Fiかモバイル通信かを見分けられません。' + (settings.wifiOnly ? '「Wi-Fiのときだけ通信する」がオンの間は、自動の更新は行いません。Wi-Fiにつないだら「今すぐ更新を確認」を押してください。' : '')
+      : (k === 'cell' && settings.wifiOnly ? 'モバイル通信のため、自動の更新とダウンロードを止めています。' : '');
+    $('sWifiNote').textContent = conn && conn.type
+      ? 'モバイル通信のときは、アプリの更新やデータのダウンロードをしません(通信量の節約)'
+      : 'このスマホではWi-Fiかどうかを見分けられないため、オンにすると自動の更新を止めます。更新は「今すぐ更新を確認」で行います';
+    $('updInfo').textContent = 'このアプリの版:' + APP_VERSION + (updReady ? '(新しい版をダウンロード済み)' : '');
+  }
+  $('netBtn').onclick = () => location.reload();
+
+  // 更新の確認:新しい版があれば裏でダウンロードし、切り替わったら帯でお知らせする
+  async function checkUpdate(){
+    if (!('serviceWorker' in navigator)) return 'nosw';
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) return 'nosw';
+    await reg.update();
+    const w = reg.installing || reg.waiting;
+    if (!w) return 'latest';
+    return new Promise(res => {
+      const done = () => res('updated');
+      if (w.state === 'activated') return done();
+      w.addEventListener('statechange', () => { if (w.state === 'activated') done(); if (w.state === 'redundant') res('failed'); });
+      setTimeout(() => res('pending'), 60000);
+    });
+  }
+  let lastAuto = 0;
+  async function autoNet(force){
+    if (!canNet()) return;
+    if (!force && Date.now() - lastAuto < 10 * 60 * 1000) return; // 頻繁に通信しない
+    lastAuto = Date.now();
+    try { await checkUpdate(); } catch(e){}
+    try { await swCall({ type: 'precache' }); checkOffline(); } catch(e){} // 足りないオフライン用データを補う
+  }
+  $('updBtn').onclick = async () => {
+    if (!navigator.onLine){ $('updInfo').textContent = '今は電波がありません。電波のある場所で確認してください。'; return; }
+    $('updBtn').disabled = true; $('updInfo').textContent = '確認しています…';
+    let r = 'failed';
+    try { r = await checkUpdate(); } catch(e){}
+    $('updBtn').disabled = false;
+    if (r === 'updated' || r === 'pending'){ updReady = true; renderNet(); $('updInfo').textContent = '新しい版をダウンロードしました。画面上の「更新する」を押すと切り替わります。'; }
+    else if (r === 'latest') $('updInfo').textContent = '最新の版です(版:' + APP_VERSION + ')。';
+    else $('updInfo').textContent = '確認できませんでした。電波の良い場所でもう一度お試しください。';
+    try { await swCall({ type: 'precache' }); checkOffline(); } catch(e){}
+  };
+  if ('serviceWorker' in navigator){
+    // すでに動いていた版から新しい版に切り替わったら、再読み込みを促す(初回インストール時は出さない)
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController){ updReady = true; renderNet(); } });
+  }
+  window.addEventListener('online', () => { renderNet(); status('電波が戻りました'); setTimeout(() => autoNet(false), 1500); });
+  window.addEventListener('offline', () => { renderNet(); status('オフラインになりました。読み取りと保存はそのまま使えます'); });
+  if (conn && conn.addEventListener) conn.addEventListener('change', () => { renderNet(); if (canNet()) autoNet(false); });
+
   // ---------- 起動 ----------
-  applyMode(); renderGon(); render(); loadMaster();
+  applyMode(); renderGon(); render(); loadMaster(); saveNetMode(); renderNet();
   if ('serviceWorker' in navigator && window.isSecureContext){
-    navigator.serviceWorker.register('sw.js').then(() => checkOffline()).catch(() => {});
+    navigator.serviceWorker.register('sw.js').then(() => { checkOffline(); setTimeout(() => autoNet(true), 3000); }).catch(() => {});
   }
   if (location.protocol !== 'https:' && location.hostname !== 'localhost'){
     status('カメラを使うには https:// のアドレスで開く必要があります。', true);

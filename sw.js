@@ -2,7 +2,7 @@
 // ・アプリ本体(更新が多い)と、ライブラリ・文字認識データ(ほぼ変わらない・大きい)を別々に保存し、
 //   更新のたびに大きなデータを取り直さないようにする
 // ・起動は保存済みのデータを優先(キャッシュ優先)し、電波が弱い場所でも待たされないようにする
-const APP_CACHE = 'pop-scan-app-v15';
+const APP_CACHE = 'pop-scan-app-v17';
 const LIB_CACHE = 'pop-scan-lib-v1';
 // 起動に欠かせないもの(これだけは必ず保存する)
 const APP_FILES = ['./', './index.html'];
@@ -13,6 +13,28 @@ const LIB_FILES = ['./zxing.min.js', './encoding.min.js', './xlsx.mini.min.js', 
   './ocr/tesseract.min.js', './ocr/worker.min.js', './ocr/core/tesseract-core-simd-lstm.wasm.js', './ocr/core/tesseract-core-lstm.wasm.js',
   './ocr/lang/jpn.traineddata.gz', './ocr/lang/eng.traineddata.gz'];
 const ALL = APP_FILES.concat(APP_OPTIONAL).map(f => [APP_CACHE, f]).concat(LIB_FILES.map(f => [LIB_CACHE, f]));
+
+// アプリの設定「Wi-Fiのときだけ通信する」を読む(アプリ側が IndexedDB に書いたもの)
+function netMode(){
+  return new Promise(res => {
+    try {
+      const r = indexedDB.open('pop-scan', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('kv');
+      r.onsuccess = () => {
+        try { const q = r.result.transaction('kv').objectStore('kv').get('netMode'); q.onsuccess = () => res(q.result || {}); q.onerror = () => res({}); }
+        catch(e){ res({}); }
+      };
+      r.onerror = () => res({});
+    } catch(e){ res({}); }
+  });
+}
+// 裏での自動通信をしてよいか(Wi-Fiのみ設定のときは、Wi-Fiと確認できた場合だけ)
+async function autoNetAllowed(){
+  const m = await netMode();
+  if (!m.wifiOnly) return true;
+  const c = self.navigator && self.navigator.connection, t = c && c.type;
+  return t === 'wifi' || t === 'ethernet';
+}
 
 async function cacheOne(cacheName, file, force){
   const cache = await caches.open(cacheName);
@@ -65,20 +87,28 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET' || url.origin !== location.origin) return;
   e.respondWith((async () => {
     const isNav = req.mode === 'navigate';
-    const cached = await caches.match(req, { ignoreSearch: true }) || (isNav ? await caches.match('./index.html') : null);
+    // 画面(ページ)は常に './index.html' として保存・取り出しする('/pop-scan/' と '/pop-scan/index.html' を同じものとして扱う)
+    const cached = isNav
+      ? (await caches.match('./index.html') || await caches.match(req, { ignoreSearch: true }))
+      : await caches.match(req, { ignoreSearch: true });
     const lib = LIB_FILES.some(f => url.pathname.endsWith(f.slice(1)));
     // ライブラリ・文字認識データは大きいので、保存済みなら取り直さない(モバイル通信量の節約)
     if (cached && lib) return cached;
     // アプリ本体は保存済みをすぐ返し、裏で最新版を取りに行く(次回の起動から反映)
-    const refresh = fetch(req).then(async res => {
+    // 端末のHTTPキャッシュに古い版が残っていても必ずサーバーに確認する
+    const refresh = () => fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then(async res => {
       if (res && res.ok){
         const cache = await caches.open(lib ? LIB_CACHE : APP_CACHE);
         await cache.put(isNav ? './index.html' : req, res.clone());
       }
       return res;
     });
-    if (cached){ e.waitUntil(refresh.catch(() => {})); return cached; }
-    try { return await refresh; }
+    if (cached){
+      // 保存済みがあるときの裏の更新は、通信してよい場合だけ行う
+      e.waitUntil(autoNetAllowed().then(ok => ok ? refresh().catch(() => {}) : null));
+      return cached;
+    }
+    try { return await refresh(); }
     catch(err){ return new Response('オフラインのため読み込めませんでした。電波のある場所で一度アプリを開いてください。', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }); }
   })());
 });
